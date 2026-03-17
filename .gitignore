@@ -1,0 +1,39 @@
+# Node.js portable runtime (not source code)
+nodejs/
+node.zip
+
+# npm cache
+.npm-cache/
+
+# Claude Code config (local to your machine)
+.claude/
+
+# Next.js build output
+scope-alpha/frontend/.next/
+scope-alpha/frontend/out/
+
+# Dependencies
+scope-alpha/frontend/node_modules/
+
+# Environment files
+.env
+.env.*
+*.env.local
+
+# Build artifacts
+dist/
+build/
+coverage/
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Python cache (from PDF generator)
+__pycache__/
+*.pyc
