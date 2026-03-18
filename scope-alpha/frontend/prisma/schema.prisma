@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -18,7 +18,7 @@ model User {
   role          String    @default("subscriber")
   avatarUrl     String?
   bio           String?
-  socialLinks   String    @default("{}")
+  socialLinks   Json      @default("{}")
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -42,7 +42,7 @@ model User {
 model AnalystProfile {
   userId                 String   @id
   tagline                String?
-  primaryAssets          String   @default("[]") // JSON array
+  primaryAssets          String[] @default([])
   tradingStyle           String?
   experienceYears        Int?
   isAcceptingSubscribers Boolean  @default(true)
@@ -57,7 +57,7 @@ model Annotation {
   analystId      String
   assetSymbol    String
   annotationType String
-  data           String    // JSON
+  data           Json
   timeframe      String?
   isActive       Boolean   @default(true)
   isDraft        Boolean   @default(false)
@@ -75,18 +75,18 @@ model Signal {
   id               String    @id @default(cuid())
   analystId        String
   assetSymbol      String
-  direction        String    // 'long' | 'short'
-  entryPrice       Float
-  targetPrice      Float
-  stopLossPrice    Float
+  direction        String
+  entryPrice       Decimal   @db.Decimal(20, 8)
+  targetPrice      Decimal   @db.Decimal(20, 8)
+  stopLossPrice    Decimal   @db.Decimal(20, 8)
   timeframe        String
-  conviction       String    @default("medium") // 'low' | 'medium' | 'high'
+  conviction       String    @default("medium")
   notes            String?
-  status           String    @default("active") // 'active' | 'target_hit' | 'stopped_out' | 'expired' | 'cancelled'
+  status           String    @default("active")
   publishedAt      DateTime  @default(now())
   resolvedAt       DateTime?
-  resolvedPrice    Float?
-  resultPnlPercent Float?
+  resolvedPrice    Decimal?  @db.Decimal(20, 8)
+  resultPnlPercent Decimal?  @db.Decimal(10, 4)
   createdAt        DateTime  @default(now())
 
   analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
@@ -100,17 +100,17 @@ model AnalystPerformance {
   totalSignals       Int      @default(0)
   winCount           Int      @default(0)
   lossCount          Int      @default(0)
-  winRate            Float?
-  avgPnlPercent      Float?
-  profitFactor       Float?
-  avgRrRatio         Float?
+  winRate            Decimal? @db.Decimal(5, 2)
+  avgPnlPercent      Decimal? @db.Decimal(10, 4)
+  profitFactor       Decimal? @db.Decimal(10, 4)
+  avgRrRatio         Decimal? @db.Decimal(10, 4)
   bestStreak         Int      @default(0)
   worstStreak        Int      @default(0)
-  totalPnlPercent    Float?
-  last90dPnlPercent  Float?
-  last90dWinRate     Float?
+  totalPnlPercent    Decimal? @db.Decimal(10, 4)
+  last90dPnlPercent  Decimal? @db.Decimal(10, 4)
+  last90dWinRate     Decimal? @db.Decimal(5, 2)
   subscriberCount    Int      @default(0)
-  avgRating          Float?
+  avgRating          Decimal? @db.Decimal(3, 2)
   updatedAt          DateTime @default(now())
 
   analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
@@ -120,12 +120,12 @@ model Review {
   id                 String   @id @default(cuid())
   authorId           String
   analystId          String
-  rating             Int      // 1-5
-  content            String
-  analystResponse    String?
+  rating             Int
+  content            String   @db.Text
+  analystResponse    String?  @db.Text
   subscriptionMonths Int      @default(0)
   createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime  @updatedAt
 
   author  User @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   analyst User @relation("ReviewAnalyst", fields: [analystId], references: [id], onDelete: Cascade)
@@ -136,7 +136,7 @@ model Review {
 
 model ChatMessage {
   id            String    @id @default(cuid())
-  roomId        String    // analystId — each analyst has one room
+  roomId        String
   authorId      String
   content       String
   replyToId     String?
@@ -156,7 +156,7 @@ model Announcement {
   id          String   @id @default(cuid())
   analystId   String
   title       String
-  content     String
+  content     String   @db.Text
   isPinned    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -171,8 +171,8 @@ model SubscriptionTier {
   analystId     String
   name          String
   description   String?
-  priceUsd      Int      // price in cents
-  features      String   @default("[]") // JSON array
+  priceUsd      Int
+  features      String[] @default([])
   sortOrder     Int      @default(0)
   isActive      Boolean  @default(true)
   stripePriceId String?
@@ -189,7 +189,7 @@ model Subscription {
   subscriberId         String
   analystId            String
   tierId               String
-  status               String    @default("active") // 'active' | 'cancelled' | 'expired' | 'past_due'
+  status               String    @default("active")
   stripeSubscriptionId String?
   currentPeriodStart   DateTime  @default(now())
   currentPeriodEnd     DateTime
@@ -212,12 +212,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { loginAsDemo } from "@/lib/demoLogin";
 import Image from "next/image";
 
 function useInView(threshold = 0.15) {
@@ -189,6 +190,9 @@ export default function LandingPage() {
             </GlassButton>
           ) : (
             <>
+              <GlassButton variant="ghost" size="sm" onClick={() => loginAsDemo()}>
+                Try Demo
+              </GlassButton>
               <GlassButton variant="ghost" size="sm" onClick={() => router.push("/login")}>
                 Sign In
               </GlassButton>
@@ -242,7 +246,7 @@ export default function LandingPage() {
           ) : (
             <>
               <GlassButton variant="primary" onClick={() => router.push("/signup")}>Get Started Free</GlassButton>
-              <GlassButton variant="default" onClick={() => router.push("/login")}>Sign In</GlassButton>
+              <GlassButton variant="default" onClick={() => loginAsDemo()}>Try Live Demo →</GlassButton>
             </>
           )}
         </div>

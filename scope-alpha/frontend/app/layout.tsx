@@ -13,17 +13,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f0f2f5",
+  themeColor: "#0a0e14",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className={`${outfit.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <head>
         <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=JSON.parse(localStorage.getItem('scope-alpha-state')||'{}');var th=(t.state&&t.state.theme)||'system';if(th==='system'){th=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',th)}catch(e){}})()`,
+            __html: `(function(){try{var t=JSON.parse(localStorage.getItem('scope-alpha-state')||'{}');var th=(t.state&&t.state.theme)||'dark';if(th==='system'){th=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',th)}catch(e){document.documentElement.setAttribute('data-theme','dark')}})()`,
           }}
         />
       </head>

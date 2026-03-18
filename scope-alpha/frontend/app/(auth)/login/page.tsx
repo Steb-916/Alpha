@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
+import { loginAsDemo } from "@/lib/demoLogin";
 
 function LoginForm() {
   const router = useRouter();
@@ -16,6 +17,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +184,42 @@ function LoginForm() {
           Sign in with Google
         </span>
       </GlassButton>
+
+      {/* Demo divider */}
+      <div className="my-6 flex items-center gap-3">
+        <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
+        <span className="text-xs font-body" style={{ color: "var(--text-tertiary)" }}>
+          or explore without an account
+        </span>
+        <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
+      </div>
+
+      <button
+        onClick={async () => {
+          setDemoLoading(true);
+          await loginAsDemo();
+        }}
+        disabled={demoLoading}
+        className="w-full py-3.5 rounded-[var(--radius-md)] text-sm font-bold font-body cursor-pointer transition-all"
+        style={{
+          background: "transparent",
+          border: "1px solid var(--accent-green)",
+          color: "var(--accent-green)",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "rgba(0, 212, 170, 0.08)";
+          e.currentTarget.style.boxShadow = "0 0 20px rgba(0, 212, 170, 0.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.boxShadow = "none";
+        }}
+      >
+        {demoLoading ? "Loading demo..." : "Explore Demo — No account needed"}
+      </button>
+      <p className="text-center text-[11px] font-body mt-2" style={{ color: "var(--text-muted)" }}>
+        Browse as a demo analyst with full access
+      </p>
 
       <p
         className="mt-6 text-center text-sm font-body"

@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         analystId: session.user.id,
         assetSymbol,
         annotationType,
-        data: typeof data === "string" ? data : JSON.stringify(data),
+        data,
         timeframe: timeframe || null,
         isDraft: isDraft ?? false,
       },

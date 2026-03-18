@@ -4,10 +4,13 @@ import { TopBar } from "@/components/layout/TopBar";
 import { ChatDrawer } from "@/components/chat/ChatDrawer";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { KeyboardShortcuts } from "@/components/terminal/KeyboardShortcuts";
+import { DemoBanner } from "@/components/terminal/DemoBanner";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "transparent" }}>
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: "transparent" }}>
+      <DemoBanner />
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar — floating glass panel */}
       <div className="p-2 pr-0 z-20">
         <Sidebar />
@@ -25,6 +28,7 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
 
       <ChatDrawer />
       <KeyboardShortcuts />
+      </div>
     </div>
   );
 }

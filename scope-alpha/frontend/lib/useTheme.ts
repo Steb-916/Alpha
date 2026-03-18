@@ -37,6 +37,6 @@ export function useTheme() {
 function useResolvedTheme(theme: "light" | "dark" | "system"): "light" | "dark" {
   if (theme === "light" || theme === "dark") return theme;
   // system preference
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
