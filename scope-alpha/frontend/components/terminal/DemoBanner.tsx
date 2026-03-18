@@ -8,14 +8,17 @@ export function DemoBanner() {
   const { data: session } = useSession();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setDismissed(sessionStorage.getItem("demo-banner-dismissed") === "true");
+      // Check for demo cookie or demo session
+      const hasDemoCookie = document.cookie.includes("scope-alpha-demo=true");
+      const hasDemoSession = session?.user?.email === "demo@scopealpha.com";
+      setIsDemo(hasDemoCookie || hasDemoSession);
     }
-  }, []);
-
-  const isDemo = session?.user?.email === "demo@scopealpha.com";
+  }, [session]);
 
   if (!isDemo || dismissed) return null;
 

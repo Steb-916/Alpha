@@ -11,8 +11,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/terminal", request.url));
   }
 
-  // Protect /terminal/* routes
-  if (pathname.startsWith("/terminal") && !token) {
+  // Protect /terminal/* routes — allow demo mode bypass
+  const isDemo = request.cookies.get("scope-alpha-demo")?.value === "true";
+  if (pathname.startsWith("/terminal") && !token && !isDemo) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
