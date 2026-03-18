@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { encode } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { cookies } from "next/headers";
+
+// Force dynamic — this route creates users and sets cookies
+export const dynamic = "force-dynamic";
 
 // GET /api/auth/demo — one-click demo login
 // Creates demo user if needed, sets session cookie, redirects to /terminal
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Find or create demo user
     let user = await prisma.user.findUnique({
@@ -172,10 +174,9 @@ export async function GET() {
       ? "__Secure-next-auth.session-token"
       : "next-auth.session-token";
 
-    // Set the session cookie and redirect
-    const response = NextResponse.redirect(
-      new URL("/terminal", process.env.NEXTAUTH_URL || "http://localhost:3000")
-    );
+    // Set the session cookie and redirect — use request URL origin for Vercel compatibility
+    const origin = request.nextUrl.origin;
+    const response = NextResponse.redirect(new URL("/terminal", origin));
 
     response.cookies.set(cookieName, token, {
       httpOnly: true,
