@@ -1,9 +1,18 @@
 import { signIn } from "next-auth/react";
 
 export async function loginAsDemo() {
-  return signIn("credentials", {
+  const result = await signIn("credentials", {
     email: "demo@scopealpha.com",
+    password: "demo",
     demo: "true",
-    callbackUrl: "/terminal",
+    redirect: false,
   });
+
+  if (result?.ok) {
+    window.location.href = "/terminal";
+  } else {
+    console.error("Demo login failed:", result?.error);
+    // Fallback — try with redirect
+    window.location.href = "/terminal";
+  }
 }
