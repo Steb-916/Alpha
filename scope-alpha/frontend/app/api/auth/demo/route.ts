@@ -153,6 +153,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Server config error" }, { status: 500 });
     }
 
+    // Determine cookie name — NextAuth uses __Secure- prefix in production
+    const isProduction = process.env.NODE_ENV === "production";
+    const cookieName = isProduction
+      ? "__Secure-next-auth.session-token"
+      : "next-auth.session-token";
+
     const token = await encode({
       token: {
         id: user.id,
@@ -165,14 +171,9 @@ export async function GET(request: NextRequest) {
         sub: user.id,
       },
       secret,
+      salt: cookieName,
       maxAge: 30 * 24 * 60 * 60, // 30 days
     });
-
-    // Determine cookie name — NextAuth uses __Secure- prefix in production
-    const isProduction = process.env.NODE_ENV === "production";
-    const cookieName = isProduction
-      ? "__Secure-next-auth.session-token"
-      : "next-auth.session-token";
 
     // Set the session cookie and redirect — use request URL origin for Vercel compatibility
     const origin = request.nextUrl.origin;
@@ -187,8 +188,12 @@ export async function GET(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Demo login error:", error);
-    return NextResponse.json({ error: "Demo login failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { error: "Demo login failed", detail: message },
+      { status: 500 }
+    );
   }
 }
