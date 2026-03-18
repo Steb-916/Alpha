@@ -1,18 +1,11 @@
-import { signIn } from "next-auth/react";
-
-export async function loginAsDemo() {
-  const result = await signIn("credentials", {
-    email: "demo@scopealpha.com",
-    password: "demo",
-    demo: "true",
-    redirect: false,
-  });
-
-  if (result?.ok) {
-    window.location.href = "/terminal";
-  } else {
-    console.error("Demo login failed:", result?.error);
-    // Fallback — try with redirect
-    window.location.href = "/terminal";
-  }
+/**
+ * Demo login — navigates to /api/auth/demo which:
+ * 1. Creates the demo user if needed
+ * 2. Sets the session cookie server-side
+ * 3. Redirects to /terminal
+ *
+ * One click. No forms. No client-side auth dance.
+ */
+export function loginAsDemo() {
+  window.location.href = "/api/auth/demo";
 }
