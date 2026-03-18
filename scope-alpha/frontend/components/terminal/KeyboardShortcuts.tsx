@@ -19,7 +19,6 @@ export function KeyboardShortcuts() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Don't capture when typing in inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === "?") {
@@ -53,33 +52,69 @@ export function KeyboardShortcuts() {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
       onClick={() => setShowOverlay(false)}
+      style={{
+        animation: "glassReveal 0.3s cubic-bezier(0.16, 1, 0.3, 1) both",
+      }}
     >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      {/* Backdrop */}
       <div
-        className="relative rounded-2xl p-8 max-w-md w-full mx-4"
+        className="absolute inset-0"
         style={{
-          background: "linear-gradient(145deg, #131620, #0F1219)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 60px rgba(0,212,170,0.05)",
+          background: "rgba(0, 0, 0, 0.3)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+        }}
+      />
+
+      {/* Modal Card */}
+      <div
+        className="relative glass p-8 max-w-md w-full mx-4"
+        style={{
+          borderRadius: "var(--radius-xl)",
+          background: "var(--surface-modal)",
+          animation: "glassReveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-display font-bold text-text-primary mb-1">Keyboard Shortcuts</h2>
-        <p className="text-xs text-text-muted font-mono mb-6">Press ? to toggle this overlay</p>
+        <div className="relative z-10">
+          <h2 className="text-lg font-display font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+            Keyboard Shortcuts
+          </h2>
+          <p className="text-xs font-mono mb-6" style={{ color: "var(--text-muted)" }}>
+            Press ? to toggle this overlay
+          </p>
 
-        <div className="space-y-2">
-          {SHORTCUTS.map((s) => (
-            <div key={s.key} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-white/[0.03]">
-              <span className="text-sm text-text-secondary">{s.label}</span>
-              <kbd className="px-2.5 py-1 rounded-md bg-white/[0.06] border border-white/[0.08] text-xs font-mono text-accent-green font-semibold">
-                {s.key}
-              </kbd>
-            </div>
-          ))}
-        </div>
+          <div className="space-y-2">
+            {SHORTCUTS.map((s) => (
+              <div
+                key={s.key}
+                className="flex items-center justify-between py-2 px-3 rounded-[var(--radius-sm)]"
+                style={{ transition: "background 0.2s ease" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--glass-bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.label}</span>
+                <kbd
+                  className="px-2.5 py-1 text-xs font-mono font-semibold"
+                  style={{
+                    background: "var(--glass-bg)",
+                    border: "1px solid var(--glass-border)",
+                    borderRadius: "var(--radius-sm)",
+                    color: "var(--accent-green)",
+                    boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.1), var(--glass-shadow)",
+                  }}
+                >
+                  {s.key}
+                </kbd>
+              </div>
+            ))}
+          </div>
 
-        <div className="mt-6 pt-4 border-t border-white/[0.05] text-center">
-          <span className="text-[10px] text-text-dim font-mono">Press ESC or click outside to close</span>
+          <div className="mt-6 pt-4 text-center" style={{ borderTop: "1px solid var(--glass-border)" }}>
+            <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
+              Press ESC or click outside to close
+            </span>
+          </div>
         </div>
       </div>
     </div>

@@ -106,3 +106,26 @@ export interface ScreenerRow extends MarketSnapshot {
 
 export type TimeFrame = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";
 export type TerminalSection = "dashboard" | "funding" | "oi" | "liquidations" | "basis" | "screener";
+
+// User types
+export type UserRole = "subscriber" | "analyst" | "admin";
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  displayName: string | null;
+  slug: string | null;
+  role: UserRole;
+  avatarUrl: string | null;
+  bio: string | null;
+  socialLinks: Record<string, string>;
+  createdAt: string;
+}
+
+export interface AnalystProfileData {
+  tagline: string | null;
+  primaryAssets: string[];
+  tradingStyle: string | null;
+  experienceYears: number | null;
+  isAcceptingSubscribers: boolean;
+}

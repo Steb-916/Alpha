@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  passwordHash  String?
+  name          String?
+  displayName   String?
+  slug          String?   @unique
+  role          String    @default("subscriber")
+  avatarUrl     String?
+  bio           String?
+  socialLinks   String    @default("{}")
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastActiveAt  DateTime?
+
+  accounts           Account[]
+  sessions           Session[]
+  analystProfile     AnalystProfile?
+  annotations        Annotation[]
+  signals            Signal[]
+  analystPerformance AnalystPerformance?
+  subscriptionTiers  SubscriptionTier[]
+  subscriptionsAsSubscriber Subscription[] @relation("SubscriberSubscriptions")
+  subscriptionsAsAnalyst    Subscription[] @relation("AnalystSubscriptions")
+  chatMessages       ChatMessage[]
+  announcements      Announcement[]
+  reviewsGiven       Review[] @relation("ReviewAuthor")
+  reviewsReceived    Review[] @relation("ReviewAnalyst")
+}
+
+model AnalystProfile {
+  userId                 String   @id
+  tagline                String?
+  primaryAssets          String   @default("[]") // JSON array
+  tradingStyle           String?
+  experienceYears        Int?
+  isAcceptingSubscribers Boolean  @default(true)
+  featured               Boolean  @default(false)
+  createdAt              DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Annotation {
+  id             String    @id @default(cuid())
+  analystId      String
+  assetSymbol    String
+  annotationType String
+  data           String    // JSON
+  timeframe      String?
+  isActive       Boolean   @default(true)
+  isDraft        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  expiresAt      DateTime?
+
+  analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
+
+  @@index([analystId, assetSymbol])
+  @@index([isActive])
+}
+
+model Signal {
+  id               String    @id @default(cuid())
+  analystId        String
+  assetSymbol      String
+  direction        String    // 'long' | 'short'
+  entryPrice       Float
+  targetPrice      Float
+  stopLossPrice    Float
+  timeframe        String
+  conviction       String    @default("medium") // 'low' | 'medium' | 'high'
+  notes            String?
+  status           String    @default("active") // 'active' | 'target_hit' | 'stopped_out' | 'expired' | 'cancelled'
+  publishedAt      DateTime  @default(now())
+  resolvedAt       DateTime?
+  resolvedPrice    Float?
+  resultPnlPercent Float?
+  createdAt        DateTime  @default(now())
+
+  analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
+
+  @@index([analystId, status])
+  @@index([status])
+}
+
+model AnalystPerformance {
+  analystId          String   @id
+  totalSignals       Int      @default(0)
+  winCount           Int      @default(0)
+  lossCount          Int      @default(0)
+  winRate            Float?
+  avgPnlPercent      Float?
+  profitFactor       Float?
+  avgRrRatio         Float?
+  bestStreak         Int      @default(0)
+  worstStreak        Int      @default(0)
+  totalPnlPercent    Float?
+  last90dPnlPercent  Float?
+  last90dWinRate     Float?
+  subscriberCount    Int      @default(0)
+  avgRating          Float?
+  updatedAt          DateTime @default(now())
+
+  analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
+}
+
+model Review {
+  id                 String   @id @default(cuid())
+  authorId           String
+  analystId          String
+  rating             Int      // 1-5
+  content            String
+  analystResponse    String?
+  subscriptionMonths Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  author  User @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  analyst User @relation("ReviewAnalyst", fields: [analystId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, analystId])
+  @@index([analystId, createdAt])
+}
+
+model ChatMessage {
+  id            String    @id @default(cuid())
+  roomId        String    // analystId — each analyst has one room
+  authorId      String
+  content       String
+  replyToId     String?
+  isPinned      Boolean   @default(false)
+  isDeleted     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  author  User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  replyTo ChatMessage?  @relation("ChatReplies", fields: [replyToId], references: [id])
+  replies ChatMessage[] @relation("ChatReplies")
+
+  @@index([roomId, createdAt])
+  @@index([roomId, isPinned])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  analystId   String
+  title       String
+  content     String
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
+
+  @@index([analystId, createdAt])
+}
+
+model SubscriptionTier {
+  id            String   @id @default(cuid())
+  analystId     String
+  name          String
+  description   String?
+  priceUsd      Int      // price in cents
+  features      String   @default("[]") // JSON array
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  stripePriceId String?
+  createdAt     DateTime @default(now())
+
+  analyst       User           @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@index([analystId])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  subscriberId         String
+  analystId            String
+  tierId               String
+  status               String    @default("active") // 'active' | 'cancelled' | 'expired' | 'past_due'
+  stripeSubscriptionId String?
+  currentPeriodStart   DateTime  @default(now())
+  currentPeriodEnd     DateTime
+  cancelledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  subscriber User             @relation("SubscriberSubscriptions", fields: [subscriberId], references: [id], onDelete: Cascade)
+  analyst    User             @relation("AnalystSubscriptions", fields: [analystId], references: [id], onDelete: Cascade)
+  tier       SubscriptionTier @relation(fields: [tierId], references: [id])
+
+  @@unique([subscriberId, analystId])
+  @@index([analystId, status])
+  @@index([subscriberId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

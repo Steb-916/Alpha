@@ -13,6 +13,7 @@ scope-alpha/frontend/.next/
 scope-alpha/frontend/out/
 
 # Dependencies
+node_modules/
 scope-alpha/frontend/node_modules/
 
 # Environment files
@@ -37,3 +38,18 @@ npm-debug.log*
 # Python cache (from PDF generator)
 __pycache__/
 *.pyc
+
+# Generated files (local utility scripts)
+generate-pdf.mjs
+ScopeAlpha_Platform_Report.pdf
+package.json
+package-lock.json
+
+# SQLite database
+scope-alpha/frontend/prisma/dev.db
+scope-alpha/frontend/prisma/dev.db-journal
+
+# PRD files at repo root (not source code)
+/ScopeAlpha_Marketplace_PRD.md
+/Fix_ChatDrawer_Navigation_PRD.md
+/UI_Polish_Terminal_PRD.md

@@ -33,52 +33,82 @@ export function Watchlist({ data }: WatchlistProps) {
   }, [data, sortKey, sortDir]);
 
   const SortIcon = ({ col }: { col: SortKey }) => (
-    <span className={cn("ml-0.5 text-[8px]", sortKey === col ? "text-accent-green" : "text-text-dim")}>
+    <span
+      className="ml-0.5 text-[8px]"
+      style={{ color: sortKey === col ? "var(--accent-green)" : "var(--text-muted)" }}
+    >
       {sortKey === col ? (sortDir === "asc" ? "▲" : "▼") : "⇅"}
     </span>
   );
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.05]">
-        <span className="text-xs font-semibold text-text-primary">Watchlist</span>
-        <span className="text-[9px] font-mono text-text-dim">{data.length} assets</span>
+      <div
+        className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: "1px solid var(--glass-border)" }}
+      >
+        <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Watchlist</span>
       </div>
 
       {/* Header */}
-      <div className="grid grid-cols-[32px_1fr_90px_72px_80px] gap-1 px-3 py-1.5 border-b border-white/[0.04] text-[9px] font-mono text-text-dim uppercase tracking-wider">
-        <button onClick={() => handleSort("rank")} className="text-left hover:text-text-secondary">#<SortIcon col="rank" /></button>
+      <div
+        className="grid grid-cols-[32px_1fr_90px_72px_80px] gap-1 px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider"
+        style={{
+          borderBottom: "1px solid var(--glass-border)",
+          background: "var(--glass-bg)",
+          color: "var(--text-muted)",
+        }}
+      >
+        <button onClick={() => handleSort("rank")} className="text-left cursor-pointer">#<SortIcon col="rank" /></button>
         <div>Asset</div>
-        <button onClick={() => handleSort("price")} className="text-right hover:text-text-secondary">Price<SortIcon col="price" /></button>
-        <button onClick={() => handleSort("change24h")} className="text-right hover:text-text-secondary">24h<SortIcon col="change24h" /></button>
-        <button onClick={() => handleSort("volume24h")} className="text-right hover:text-text-secondary">Vol<SortIcon col="volume24h" /></button>
+        <button onClick={() => handleSort("price")} className="text-right cursor-pointer">Price<SortIcon col="price" /></button>
+        <button onClick={() => handleSort("change24h")} className="text-right cursor-pointer">24h<SortIcon col="change24h" /></button>
+        <button onClick={() => handleSort("volume24h")} className="text-right cursor-pointer">Vol<SortIcon col="volume24h" /></button>
       </div>
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
-        {sorted.map((asset) => (
-          <button
-            key={asset.symbol}
-            onClick={() => setAsset(asset.symbol)}
-            className={cn(
-              "w-full grid grid-cols-[32px_1fr_90px_72px_80px] gap-1 px-3 py-2 items-center transition-all duration-150 text-left",
-              selectedAsset === asset.symbol
-                ? "bg-accent-green/[0.06] border-l-2 border-accent-green"
-                : "hover:bg-white/[0.02] border-l-2 border-transparent"
-            )}
-          >
-            <span className="text-[10px] font-mono text-text-dim">{asset.rank}</span>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-text-primary truncate">{asset.symbol}</div>
-              <div className="text-[9px] text-text-dim truncate">{asset.name}</div>
-            </div>
-            <div className="text-right text-xs font-mono text-text-primary">{formatPrice(asset.price)}</div>
-            <div className={cn("text-right text-[11px] font-mono font-semibold", asset.change24h >= 0 ? "text-positive" : "text-negative")}>
-              {formatPercent(asset.change24h)}
-            </div>
-            <div className="text-right text-[10px] font-mono text-text-muted">{formatLargeNumber(asset.volume24h).replace("$", "")}</div>
-          </button>
-        ))}
+        {sorted.map((asset) => {
+          const isSelected = selectedAsset === asset.symbol;
+          return (
+            <button
+              key={asset.symbol}
+              onClick={() => setAsset(asset.symbol)}
+              className="w-full grid grid-cols-[32px_1fr_90px_72px_80px] gap-1 px-3 py-2 items-center text-left cursor-pointer"
+              style={{
+                background: isSelected ? "rgba(0, 212, 170, 0.08)" : "transparent",
+                borderLeft: isSelected ? "3px solid var(--accent-green)" : "3px solid transparent",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.background = "var(--glass-bg)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.background = "transparent";
+                }
+              }}
+            >
+              <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{asset.rank}</span>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold truncate" style={{ color: "var(--text-primary)" }}>{asset.symbol}</div>
+                <div className="text-[9px] truncate" style={{ color: "var(--text-muted)" }}>{asset.name}</div>
+              </div>
+              <div className="text-right text-xs font-mono" style={{ color: "var(--text-primary)" }}>{formatPrice(asset.price)}</div>
+              <div
+                className="text-right text-[11px] font-mono font-semibold"
+                style={{ color: asset.change24h >= 0 ? "var(--positive)" : "var(--negative)" }}
+              >
+                {formatPercent(asset.change24h)}
+              </div>
+              <div className="text-right text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
+                {formatLargeNumber(asset.volume24h).replace("$", "")}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

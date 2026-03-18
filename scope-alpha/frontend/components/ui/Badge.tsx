@@ -7,22 +7,33 @@ interface BadgeProps {
   className?: string;
 }
 
-const variants = {
-  green: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-  red: "bg-red-500/15 text-red-400 border-red-500/20",
-  yellow: "bg-yellow-500/15 text-yellow-400 border-yellow-500/20",
-  blue: "bg-blue-500/15 text-blue-400 border-blue-500/20",
-  purple: "bg-purple-500/15 text-purple-400 border-purple-500/20",
-  gray: "bg-gray-500/15 text-gray-400 border-gray-500/20",
+const variantStyles: Record<string, { bg: string; text: string; border: string }> = {
+  green: { bg: "rgba(0, 212, 170, 0.1)", text: "var(--data-green)", border: "rgba(0, 212, 170, 0.2)" },
+  red: { bg: "rgba(239, 68, 68, 0.1)", text: "var(--data-red)", border: "rgba(239, 68, 68, 0.2)" },
+  yellow: { bg: "rgba(245, 158, 11, 0.1)", text: "var(--data-yellow)", border: "rgba(245, 158, 11, 0.2)" },
+  blue: { bg: "rgba(59, 130, 246, 0.1)", text: "var(--data-blue)", border: "rgba(59, 130, 246, 0.2)" },
+  purple: { bg: "rgba(139, 92, 246, 0.1)", text: "var(--data-purple)", border: "rgba(139, 92, 246, 0.2)" },
+  gray: { bg: "rgba(148, 163, 184, 0.1)", text: "var(--text-secondary)", border: "rgba(148, 163, 184, 0.2)" },
 };
 
 export function Badge({ children, variant = "gray", className }: BadgeProps) {
+  const s = variantStyles[variant];
   return (
-    <span className={cn(
-      "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border",
-      variants[variant],
-      className
-    )}>
+    <span
+      className={cn(
+        "inline-flex items-center px-2.5 py-0.5 text-[10px] font-mono font-semibold border",
+        className
+      )}
+      style={{
+        background: s.bg,
+        color: s.text,
+        borderColor: s.border,
+        borderRadius: "var(--radius-pill)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        boxShadow: "inset 0 1px 2px rgba(255,255,255,0.1)",
+      }}
+    >
       {children}
     </span>
   );

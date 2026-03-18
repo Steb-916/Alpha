@@ -1,6 +1,6 @@
 "use client";
 import { Component, type ReactNode } from "react";
-import { NeuButton } from "./NeuButton";
+import { GlassButton } from "./GlassButton";
 
 interface Props {
   children: ReactNode;
@@ -29,19 +29,19 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex items-center justify-center min-h-[200px] p-8">
           <div className="text-center max-w-md">
-            <div className="w-12 h-12 rounded-xl bg-negative/10 border border-negative/20 flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
               <span className="text-xl">⚠</span>
             </div>
-            <h3 className="text-lg font-display font-bold text-text-primary mb-2">Something went wrong</h3>
-            <p className="text-sm text-text-muted mb-4 font-mono">
+            <h3 className="text-lg font-display font-bold mb-2" style={{ color: "var(--text-primary)" }}>Something went wrong</h3>
+            <p className="text-sm mb-4 font-mono" style={{ color: "var(--text-muted)" }}>
               {this.state.error?.message || "An unexpected error occurred"}
             </p>
-            <NeuButton
+            <GlassButton
               size="sm"
               onClick={() => this.setState({ hasError: false, error: null })}
             >
               Try Again
-            </NeuButton>
+            </GlassButton>
           </div>
         </div>
       );

@@ -7,10 +7,12 @@ interface AppState {
   selectedTimeframe: TimeFrame;
   sidebarCollapsed: boolean;
   connectionStatus: "connected" | "connecting" | "disconnected";
+  theme: "light" | "dark" | "system";
   setAsset: (symbol: string) => void;
   setTimeframe: (tf: TimeFrame) => void;
   toggleSidebar: () => void;
   setConnectionStatus: (s: "connected" | "connecting" | "disconnected") => void;
+  setTheme: (theme: "light" | "dark" | "system") => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -20,10 +22,12 @@ export const useAppStore = create<AppState>()(
       selectedTimeframe: "1D",
       sidebarCollapsed: false,
       connectionStatus: "connected",
+      theme: "system",
       setAsset: (symbol) => set({ selectedAsset: symbol }),
       setTimeframe: (tf) => set({ selectedTimeframe: tf }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
+      setTheme: (theme) => set({ theme }),
     }),
     { name: "scope-alpha-state" }
   )
