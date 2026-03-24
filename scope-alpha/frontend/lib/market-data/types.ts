@@ -13,10 +13,6 @@ export type {
   SSEEvent,
 } from '../exchanges/types';
 
-export type {
-  SSEClient,
-} from './ws-manager';
-
 /** Connection status for client-side display */
 export type ConnectionStatus =
   | 'disconnected'

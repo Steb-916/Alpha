@@ -5,7 +5,7 @@ import { DataCell } from "@/components/ui/DataCell";
 import { Badge } from "@/components/ui/Badge";
 import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_INSTRUMENTS } from "@/lib/mockData";
+import { MOCK_INSTRUMENTS, generateFundingData } from "@/lib/mockData";
 import { formatFundingRate, formatPercent, cn, getChangeColor } from "@/lib/utils";
 import { useLiveFundingData } from "@/hooks/useLiveTerminalData";
 
@@ -61,12 +61,7 @@ export default function FundingPage() {
   const allFunding = useMemo(
     () => MOCK_INSTRUMENTS.map((inst) => ({
       ...inst,
-      funding: inst.symbol === selectedAsset ? liveFunding : (() => {
-        // For non-selected assets, use the live hook won't work (hooks can't be conditional)
-        // So we import mock data but override the selected one
-        const { generateFundingData } = require("@/lib/mockData");
-        return generateFundingData(inst.symbol);
-      })(),
+      funding: inst.symbol === selectedAsset ? liveFunding : generateFundingData(inst.symbol),
     })),
     [liveFunding, selectedAsset]
   );
