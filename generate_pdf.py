@@ -1,681 +1,534 @@
-"""Generate Scope Alpha — Complete Behind The Scenes PDF."""
-import os
+#!/usr/bin/env python3
+"""Generate Scope Alpha Technical Overview PDF."""
+
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.colors import HexColor, black, white
 from reportlab.lib.units import inch
+from reportlab.lib.colors import HexColor, white
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle,
-    HRFlowable, KeepTogether, ListFlowable, ListItem,
+    HRFlowable
 )
-from reportlab.platypus.flowables import Flowable
+import os
 
-# ── Colors ──────────────────────────────────────────────────────────
-DARK_BG = HexColor("#0B0E14")
-ACCENT_GREEN = HexColor("#00D4AA")
-ACCENT_PURPLE = HexColor("#8B5CF6")
-DARK_CARD = HexColor("#131720")
-TEXT_DIM = HexColor("#6B7280")
-SECTION_BG = HexColor("#F8FAFC")
-BORDER_GRAY = HexColor("#E2E8F0")
-HEADING_DARK = HexColor("#0F172A")
-SUBHEADING = HexColor("#334155")
-BODY_TEXT = HexColor("#374151")
-CODE_BG = HexColor("#F1F5F9")
-CALLOUT_BG = HexColor("#F0FDF4")
-CALLOUT_BORDER = HexColor("#86EFAC")
+# Colors
+BG_DARK = HexColor("#0D1117")
+BG_CARD = HexColor("#161B22")
+BG_CARD_LIGHT = HexColor("#1C2333")
+ACCENT = HexColor("#00D4AA")
+ACCENT_DIM = HexColor("#00A88A")
+TEXT_PRIMARY = HexColor("#E6EDF3")
+TEXT_SECONDARY = HexColor("#8B949E")
+TEXT_MUTED = HexColor("#6E7681")
+WHITE = white
 
-OUTPUT = os.path.join(os.path.dirname(__file__), "Scope_Alpha_Technical_Overview.pdf")
+W, H = letter
 
-# ── Styles ──────────────────────────────────────────────────────────
-styles = getSampleStyleSheet()
+def make_styles():
+    s = {}
+    s['title'] = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=28,
+        textColor=WHITE, alignment=TA_CENTER, spaceAfter=6, leading=34)
+    s['subtitle'] = ParagraphStyle('Subtitle', fontName='Helvetica', fontSize=14,
+        textColor=ACCENT, alignment=TA_CENTER, spaceAfter=4, leading=18)
+    s['date'] = ParagraphStyle('Date', fontName='Helvetica', fontSize=11,
+        textColor=TEXT_SECONDARY, alignment=TA_CENTER, spaceAfter=20, leading=14)
+    s['h1'] = ParagraphStyle('H1', fontName='Helvetica-Bold', fontSize=20,
+        textColor=ACCENT, spaceBefore=16, spaceAfter=10, leading=26)
+    s['h2'] = ParagraphStyle('H2', fontName='Helvetica-Bold', fontSize=14,
+        textColor=WHITE, spaceBefore=12, spaceAfter=6, leading=18)
+    s['h3'] = ParagraphStyle('H3', fontName='Helvetica-Bold', fontSize=12,
+        textColor=ACCENT_DIM, spaceBefore=8, spaceAfter=4, leading=16)
+    s['body'] = ParagraphStyle('Body', fontName='Helvetica', fontSize=10,
+        textColor=TEXT_PRIMARY, spaceAfter=6, leading=15, alignment=TA_JUSTIFY)
+    s['bullet'] = ParagraphStyle('Bullet', fontName='Helvetica', fontSize=10,
+        textColor=TEXT_PRIMARY, spaceAfter=3, leading=14, leftIndent=20,
+        bulletIndent=8, bulletFontSize=10, bulletColor=ACCENT)
+    s['bullet2'] = ParagraphStyle('Bullet2', fontName='Helvetica', fontSize=9.5,
+        textColor=TEXT_SECONDARY, spaceAfter=2, leading=13, leftIndent=36,
+        bulletIndent=24, bulletFontSize=9, bulletColor=TEXT_MUTED)
+    s['small'] = ParagraphStyle('Small', fontName='Helvetica', fontSize=9,
+        textColor=TEXT_SECONDARY, spaceAfter=4, leading=12)
+    s['table_header'] = ParagraphStyle('TH', fontName='Helvetica-Bold', fontSize=9,
+        textColor=WHITE, leading=12)
+    s['table_cell'] = ParagraphStyle('TC', fontName='Helvetica', fontSize=9,
+        textColor=TEXT_PRIMARY, leading=12)
+    return s
 
-styles.add(ParagraphStyle("DocTitle", parent=styles["Title"], fontSize=28, leading=34, textColor=HEADING_DARK, spaceAfter=6, fontName="Helvetica-Bold"))
-styles.add(ParagraphStyle("DocSubtitle", parent=styles["Normal"], fontSize=13, leading=18, textColor=SUBHEADING, spaceAfter=24, fontName="Helvetica"))
-styles.add(ParagraphStyle("SectionHead", parent=styles["Heading1"], fontSize=18, leading=24, textColor=HEADING_DARK, spaceBefore=20, spaceAfter=10, fontName="Helvetica-Bold"))
-styles.add(ParagraphStyle("SubHead", parent=styles["Heading2"], fontSize=13, leading=17, textColor=SUBHEADING, spaceBefore=12, spaceAfter=6, fontName="Helvetica-Bold"))
-styles.add(ParagraphStyle("SubSubHead", parent=styles["Heading3"], fontSize=11, leading=15, textColor=SUBHEADING, spaceBefore=8, spaceAfter=4, fontName="Helvetica-Bold"))
-styles.add(ParagraphStyle("Body", parent=styles["Normal"], fontSize=10.5, leading=16, textColor=BODY_TEXT, spaceAfter=8, fontName="Helvetica", alignment=TA_JUSTIFY))
-styles.add(ParagraphStyle("BodyBold", parent=styles["Normal"], fontSize=10.5, leading=16, textColor=HEADING_DARK, spaceAfter=4, fontName="Helvetica-Bold"))
-styles.add(ParagraphStyle("BulletItem", parent=styles["Normal"], fontSize=10.5, leading=16, textColor=BODY_TEXT, spaceAfter=4, fontName="Helvetica", leftIndent=20, bulletIndent=8, alignment=TA_LEFT))
-styles.add(ParagraphStyle("CodeBlock", parent=styles["Normal"], fontSize=9, leading=13, textColor=HexColor("#1E293B"), fontName="Courier", backColor=CODE_BG, leftIndent=12, rightIndent=12, spaceBefore=4, spaceAfter=8, borderColor=BORDER_GRAY, borderWidth=0.5, borderPadding=6))
-styles.add(ParagraphStyle("FileTree", parent=styles["Normal"], fontSize=9, leading=13, textColor=HexColor("#475569"), fontName="Courier", leftIndent=16, spaceAfter=2))
-styles.add(ParagraphStyle("Caption", parent=styles["Normal"], fontSize=9, leading=12, textColor=TEXT_DIM, fontName="Helvetica-Oblique", alignment=TA_CENTER, spaceAfter=8))
-styles.add(ParagraphStyle("Callout", parent=styles["Normal"], fontSize=10, leading=15, textColor=HexColor("#166534"), fontName="Helvetica", backColor=CALLOUT_BG, leftIndent=12, rightIndent=12, spaceBefore=6, spaceAfter=10, borderColor=CALLOUT_BORDER, borderWidth=1, borderPadding=8))
-styles.add(ParagraphStyle("QA_Q", parent=styles["Normal"], fontSize=10.5, leading=16, textColor=HEADING_DARK, spaceAfter=2, fontName="Helvetica-Bold", leftIndent=4))
-styles.add(ParagraphStyle("QA_A", parent=styles["Normal"], fontSize=10.5, leading=16, textColor=BODY_TEXT, spaceAfter=10, fontName="Helvetica", leftIndent=16))
+ST = make_styles()
 
+class DarkPageTemplate:
+    def __init__(self):
+        self.page_count = 0
 
-# ── Custom flowables ────────────────────────────────────────────────
-class ColorBar(Flowable):
-    def __init__(self, width=480, height=3, color=ACCENT_GREEN):
-        super().__init__()
-        self.bar_width = width
-        self.bar_height = height
-        self.bar_color = color
-    def draw(self):
-        self.canv.setFillColor(self.bar_color)
-        self.canv.roundRect(0, 0, self.bar_width, self.bar_height, 1.5, fill=1, stroke=0)
-    def wrap(self, availWidth, availHeight):
-        return self.bar_width, self.bar_height + 4
+    def __call__(self, canvas, doc):
+        self.page_count += 1
+        canvas.saveState()
+        canvas.setFillColor(BG_DARK)
+        canvas.rect(0, 0, W, H, fill=1, stroke=0)
+        if self.page_count > 1:
+            canvas.setFillColor(TEXT_MUTED)
+            canvas.setFont("Helvetica", 8)
+            canvas.drawCentredString(W / 2, 30, f"Scope Alpha  |  Technical Overview & Product Roadmap  |  Page {self.page_count}")
+            canvas.setStrokeColor(ACCENT)
+            canvas.setLineWidth(2)
+            canvas.line(50, H - 40, W - 50, H - 40)
+        canvas.restoreState()
 
+dark_page = DarkPageTemplate()
 
-class ColorSwatch(Flowable):
-    def __init__(self, color_hex, label, width=280, height=18):
-        super().__init__()
-        self.color_hex = color_hex
-        self.label = label
-        self.swatch_width = width
-        self.swatch_height = height
-    def draw(self):
-        self.canv.setFillColor(HexColor(self.color_hex))
-        self.canv.roundRect(0, 2, 14, 14, 2, fill=1, stroke=0)
-        self.canv.setFillColor(BODY_TEXT)
-        self.canv.setFont("Courier", 9)
-        self.canv.drawString(20, 4, f"{self.color_hex}  {self.label}")
-    def wrap(self, availWidth, availHeight):
-        return self.swatch_width, self.swatch_height
+def hr():
+    return HRFlowable(width="100%", thickness=1, color=BG_CARD_LIGHT, spaceAfter=8, spaceBefore=8)
 
-
-# ── Page templates ──────────────────────────────────────────────────
-def footer_template(canvas, doc):
-    canvas.saveState()
-    canvas.setStrokeColor(BORDER_GRAY); canvas.setLineWidth(0.5)
-    canvas.line(54, 42, letter[0]-54, 42)
-    canvas.setFont("Helvetica", 7.5); canvas.setFillColor(TEXT_DIM)
-    canvas.drawString(54, 30, "Scope Alpha  |  Behind The Scenes  |  Complete Technical Walkthrough")
-    canvas.drawRightString(letter[0]-54, 30, f"Page {doc.page}")
-    canvas.setStrokeColor(ACCENT_GREEN); canvas.setLineWidth(2)
-    canvas.line(54, letter[1]-36, letter[0]-54, letter[1]-36)
-    canvas.restoreState()
-
-def first_page_template(canvas, doc):
-    canvas.saveState()
-    canvas.setStrokeColor(ACCENT_GREEN); canvas.setLineWidth(4)
-    canvas.line(54, letter[1]-36, letter[0]-54, letter[1]-36)
-    canvas.setStrokeColor(BORDER_GRAY); canvas.setLineWidth(0.5)
-    canvas.line(54, 42, letter[0]-54, 42)
-    canvas.setFont("Helvetica", 7.5); canvas.setFillColor(TEXT_DIM)
-    canvas.drawString(54, 30, "Scope Alpha  |  Behind The Scenes  |  Complete Technical Walkthrough")
-    canvas.drawRightString(letter[0]-54, 30, f"Page {doc.page}")
-    canvas.restoreState()
-
-
-# ── Helpers ─────────────────────────────────────────────────────────
-def section(title, items):
-    result = [ColorBar(), Paragraph(title, styles["SectionHead"])]
-    result.extend(items)
-    return result
-
-def bullet(text):
-    return Paragraph(f"\u2022  {text}", styles["BulletItem"])
-
-def body(text):
-    return Paragraph(text, styles["Body"])
-
-def bold_body(text):
-    return Paragraph(text, styles["BodyBold"])
+def section(num, title):
+    return Paragraph(f"<font color='#6E7681'>{num}.</font>  {title}", ST['h1'])
 
 def sub(title):
-    return Paragraph(title, styles["SubHead"])
+    return Paragraph(title, ST['h2'])
 
-def subsub(title):
-    return Paragraph(title, styles["SubSubHead"])
+def body(text):
+    return Paragraph(text, ST['body'])
 
-def code(text):
-    return Paragraph(text, styles["CodeBlock"])
+def bullet(text):
+    return Paragraph(text, ST['bullet'], bulletText="\u2022")
 
-def callout(text):
-    return Paragraph(text, styles["Callout"])
+def spacer(h=6):
+    return Spacer(1, h)
 
-def qa(q, a):
-    return [Paragraph(f"Q: {q}", styles["QA_Q"]), Paragraph(a, styles["QA_A"])]
+def accent(text):
+    return f"<font color='#00D4AA'><b>{text}</b></font>"
 
-def file_line(text):
-    return Paragraph(text, styles["FileTree"])
+def bold(text):
+    return f"<b>{text}</b>"
 
+def muted(text):
+    return f"<font color='#8B949E'>{text}</font>"
 
-# ── Build document ──────────────────────────────────────────────────
-def build_pdf():
-    doc = SimpleDocTemplate(OUTPUT, pagesize=letter, topMargin=56, bottomMargin=56, leftMargin=54, rightMargin=54)
-    story = []
-
-    # ══════════════════════════════════════════════════════════════
-    #  COVER PAGE
-    # ══════════════════════════════════════════════════════════════
-    story.append(Spacer(1, 50))
-    story.append(Paragraph("SCOPE ALPHA", styles["DocTitle"]))
-    story.append(Paragraph("Behind The Scenes \u2014 Complete Technical Walkthrough", styles["DocSubtitle"]))
-    story.append(ColorBar(width=120, height=4, color=ACCENT_GREEN))
-    story.append(Spacer(1, 16))
-    story.append(body(
-        "Everything you need to know to present Scope Alpha to a CS audience. "
-        "This document walks through every layer of the application \u2014 from the landing page animations "
-        "to the terminal data pipeline \u2014 explaining exactly which technology powers each feature "
-        "and why each decision was made."
-    ))
-    story.append(Spacer(1, 12))
-
-    toc_items = [
-        "1.  What Scope Alpha Is (Product Pitch)",
-        "2.  The Landing Page \u2014 Hero, Animations, Floating Dashboard",
-        "3.  The Terminal Shell \u2014 Sidebar, TopBar, Keyboard Shortcuts",
-        "4.  Dashboard Page \u2014 Charts, Watchlist, Data Flow",
-        "5.  Every Terminal Page (OI, Funding, Liquidations, Basis, Screener)",
-        "6.  The Design System \u2014 NeuCard, DataCell, Badge, Colors",
-        "7.  The Data Layer \u2014 Seeded PRNG, Mock Generators",
-        "8.  State Management \u2014 Zustand + Hydration Strategy",
-        "9.  Fonts, CSS, Tailwind Configuration",
-        "10. Full Tech Stack Summary",
-        "11. Is There a Live API? (Honest Answer)",
-        "12. Likely Questions &amp; Answers (Cheat Sheet)",
-        "13. File Map \u2014 Every File and What It Does",
-        "14. How to Run It",
+def make_table(headers, rows, col_widths=None):
+    data = [[Paragraph(h, ST['table_header']) for h in headers]]
+    for row in rows:
+        data.append([Paragraph(str(c), ST['table_cell']) for c in row])
+    if col_widths is None:
+        col_widths = [None] * len(headers)
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ('BACKGROUND', (0, 0), (-1, 0), BG_CARD),
+        ('BACKGROUND', (0, 1), (-1, -1), HexColor("#0F1419")),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [HexColor("#0F1419"), HexColor("#131920")]),
+        ('TEXTCOLOR', (0, 0), (-1, -1), TEXT_PRIMARY),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+        ('TOPPADDING', (0, 1), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, BG_CARD_LIGHT),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]
-    for item in toc_items:
-        story.append(Paragraph(item, ParagraphStyle("TOC", parent=styles["Normal"], fontSize=10, leading=16, textColor=SUBHEADING, fontName="Helvetica", leftIndent=8, spaceAfter=3)))
+    t.setStyle(TableStyle(style))
+    return t
 
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("March 2026  \u00b7  Presentation Reference Document", styles["Caption"]))
-    story.append(PageBreak())
+# Build
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Scope_Alpha_Technical_Overview.pdf")
 
-    # ══════════════════════════════════════════════════════════════
-    #  1. PRODUCT PITCH
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("1. What Scope Alpha Is", [
-        body("Scope Alpha is a <b>crypto derivatives analytics terminal</b>. Think of it as a Bloomberg Terminal but specifically for crypto futures and perpetual swap markets."),
-        sub("Who is it for?"),
-        bullet("<b>Quantitative traders</b> who need funding rate signals and basis arbitrage data."),
-        bullet("<b>Risk managers</b> monitoring open interest shifts and liquidation cascades."),
-        bullet("<b>Derivatives desks</b> that need a unified view of all leveraged market signals."),
-        sub("What signals does it track?"),
-        bullet("<b>Funding Rates</b> \u2014 the periodic fee perpetual swap holders pay. When longs pay shorts, the market is over-leveraged long."),
-        bullet("<b>Open Interest (OI)</b> \u2014 total value of outstanding futures contracts. Rising OI + rising price = new money entering."),
-        bullet("<b>Liquidations</b> \u2014 forced closures of leveraged positions. Cascading liquidations cause flash crashes."),
-        bullet("<b>Basis</b> \u2014 the premium or discount of futures vs spot price. Positive basis (contango) = bullish sentiment."),
-        bullet("<b>Health Score</b> \u2014 a composite metric combining all the above into a single risk regime indicator."),
-        Spacer(1, 6),
-        callout("<b>Key point for your presentation:</b> This is a <b>frontend prototype</b> with no live data yet. All numbers are generated by a seeded random number generator. The UI is production-quality, but the data is fake (by design)."),
-    ]))
+doc = SimpleDocTemplate(
+    output_path, pagesize=letter,
+    topMargin=60, bottomMargin=50, leftMargin=55, rightMargin=55,
+)
 
-    story.append(PageBreak())
+story = []
 
-    # ══════════════════════════════════════════════════════════════
-    #  2. LANDING PAGE
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("2. The Landing Page", [
-        body("When you open <b>localhost:3000</b>, you see the landing page. This is rendered by <font face='Courier' size='9'>app/page.tsx</font> which just imports <font face='Courier' size='9'>components/landing/LandingPage.tsx</font> \u2014 a single 376-line file that contains the entire landing experience."),
+# ── TITLE PAGE ──
+story.append(Spacer(1, 140))
+story.append(HRFlowable(width="60%", thickness=2, color=ACCENT, spaceAfter=20))
+story.append(Paragraph("SCOPE ALPHA", ST['title']))
+story.append(Spacer(1, 6))
+story.append(Paragraph("Technical Overview &amp; Product Roadmap", ParagraphStyle(
+    'SubMain', fontName='Helvetica', fontSize=16, textColor=TEXT_PRIMARY,
+    alignment=TA_CENTER, spaceAfter=8, leading=20)))
+story.append(HRFlowable(width="60%", thickness=2, color=ACCENT, spaceAfter=16, spaceBefore=12))
+story.append(Paragraph("Trading Strategy Marketplace Platform", ST['subtitle']))
+story.append(Paragraph("Demo Stage  |  March 2026", ST['date']))
+story.append(Spacer(1, 50))
+story.append(Paragraph(
+    f"A crypto derivatives analytics and trading strategy marketplace that enables "
+    f"verified analysts to publish {accent('timestamped trading signals')}, create "
+    f"visual {accent('chart annotations')}, and monetize their expertise through "
+    f"{accent('subscription tiers')}.",
+    ParagraphStyle('Intro', fontName='Helvetica', fontSize=11, textColor=TEXT_SECONDARY,
+                   alignment=TA_CENTER, leading=16, leftIndent=40, rightIndent=40)))
+story.append(Spacer(1, 80))
+story.append(Paragraph("CONFIDENTIAL  |  FOR RESEARCH PURPOSES",
+    ParagraphStyle('Conf', fontName='Helvetica-Bold', fontSize=9,
+                   textColor=TEXT_MUTED, alignment=TA_CENTER)))
+story.append(PageBreak())
 
-        sub("2a. The Ambient Background (Mouse-Tracking Orbs)"),
-        body("Behind everything, there are two large blurred circles that float around:"),
-        bullet("A <b>green orb</b> (600px wide, rgba(0,212,170,0.12)) that tracks your mouse position with a 2-second eased delay."),
-        bullet("A <b>blue orb</b> (400px, rgba(59,130,246,0.08)) that floats on its own using the <font face='Courier' size='9'>orbFloat</font> CSS keyframe animation."),
-        bullet("A <b>dot grid</b> overlay \u2014 using CSS <font face='Courier' size='9'>backgroundImage</font> with two linear gradients at 60px intervals creating a subtle graph paper effect."),
-        body("<b>Built with:</b> Pure CSS + React state. The mouse position is tracked via <font face='Courier' size='9'>window.addEventListener('mousemove')</font>, stored in <font face='Courier' size='9'>useState</font>, and applied as inline <font face='Courier' size='9'>top</font>/<font face='Courier' size='9'>left</font> CSS with <font face='Courier' size='9'>transition: top 2s ease, left 2s ease</font> for the smooth lag effect."),
+# ── TABLE OF CONTENTS ──
+story.append(Spacer(1, 20))
+story.append(Paragraph("TABLE OF CONTENTS", ParagraphStyle(
+    'TOCTitle', fontName='Helvetica-Bold', fontSize=18, textColor=ACCENT,
+    alignment=TA_CENTER, spaceAfter=20)))
+story.append(hr())
 
-        sub("2b. The Navigation Bar (Scroll-Aware)"),
-        body("The nav bar is <b>fixed</b> at the top. It starts fully transparent and becomes a frosted glass panel when you scroll past 50px:"),
-        bullet("<b>Transparency to glass:</b> Controlled by <font face='Courier' size='9'>scrollY</font> state from a scroll event listener. When scrollY &gt; 50, it applies <font face='Courier' size='9'>rgba(11,14,20,0.85)</font> background + <font face='Courier' size='9'>backdrop-filter: blur(20px) saturate(1.2)</font>."),
-        bullet("<b>Logo:</b> The Scope Alpha logo is rendered with Next.js <font face='Courier' size='9'>&lt;Image&gt;</font> component (automatic optimization, lazy loading)."),
-        bullet("<b>'Launch Terminal' button:</b> Uses our custom <font face='Courier' size='9'>NeuButton</font> component with <font face='Courier' size='9'>primary</font> prop. Clicking it calls <font face='Courier' size='9'>router.push('/terminal')</font> (Next.js client-side navigation)."),
-        body("<b>Built with:</b> Next.js <font face='Courier' size='9'>useRouter</font> for navigation, React <font face='Courier' size='9'>useState</font>/<font face='Courier' size='9'>useEffect</font> for scroll tracking, CSS <font face='Courier' size='9'>backdrop-filter</font> for the glassmorphism effect."),
+toc_items = [
+    ("1", "Executive Summary"),
+    ("2", "Core Value Proposition"),
+    ("3", "Current Demo Features"),
+    ("4", "Tech Stack"),
+    ("5", "Database Architecture"),
+    ("6", "API Architecture"),
+    ("7", "Product Roadmap"),
+    ("8", "Revenue Model"),
+    ("9", "Competitive Advantages"),
+    ("10", "Current Limitations"),
+    ("11", "Conclusion"),
+]
+for num, title in toc_items:
+    story.append(Paragraph(
+        f"<font color='#00D4AA'><b>{num}</b></font>&nbsp;&nbsp;&nbsp;&nbsp;{title}",
+        ParagraphStyle('TOCItem', fontName='Helvetica', fontSize=12,
+                       textColor=TEXT_PRIMARY, spaceAfter=8, leading=18, leftIndent=60)))
+story.append(PageBreak())
 
-        sub("2c. The Hero Section"),
-        body("The big headline area with staggered fade-in animations:"),
-        bullet("<b>'DERIVATIVES INTELLIGENCE' pill:</b> A green-bordered pill with a pulsing green dot (CSS <font face='Courier' size='9'>pulse</font> animation)."),
-        bullet("<b>'See Through The Market Noise' heading:</b> Uses the <font face='Courier' size='9'>Outfit</font> font at <font face='Courier' size='9'>clamp(40px, 7vw, 82px)</font> \u2014 this is CSS <font face='Courier' size='9'>clamp()</font> for responsive font sizing without media queries."),
-        bullet("<b>'Noise' shimmer effect:</b> The word 'Noise' has a <font face='Courier' size='9'>shimmer-text</font> CSS class that applies a moving gradient (<font face='Courier' size='9'>background: linear-gradient(90deg, #E2E8F0, #00D4AA, #3B82F6, #00D4AA, #E2E8F0)</font>) with <font face='Courier' size='9'>background-clip: text</font> and <font face='Courier' size='9'>animation: textShimmer 6s linear infinite</font>."),
-        bullet("<b>Staggered animation:</b> Each element uses <font face='Courier' size='9'>animation: fadeInUp 0.8s cubic-bezier(0.16,1,0.3,1) Xs both</font> where X increases (0.2s, 0.4s, 0.6s, 0.8s, 1s) for a waterfall effect."),
-        body("<b>Built with:</b> CSS keyframe animations, CSS <font face='Courier' size='9'>clamp()</font> for responsive sizing, <font face='Courier' size='9'>-webkit-background-clip: text</font> for the gradient text effect."),
-    ]))
-    story.append(PageBreak())
+# ── 1. EXECUTIVE SUMMARY ──
+story.append(section("1", "Executive Summary"))
+story.append(hr())
+story.append(body(
+    f"Scope Alpha is a {accent('crypto derivatives analytics and trading strategy marketplace')}. "
+    f"The platform enables verified analysts to publish timestamped trading signals, create visual "
+    f"chart annotations, and monetize their trading expertise through tiered subscription plans."))
+story.append(body(
+    f"Subscribers can browse the marketplace, view analyst profiles with {accent('verified performance records')}, "
+    f"and subscribe to receive real-time signals and chart annotations overlaid directly on their trading charts."))
+story.append(body(
+    f"The application is currently in {accent('demo/alpha stage')} with mock data for development and public testing. "
+    f"The core platform architecture (authentication, signals, annotations, subscriptions, reviews, chat) "
+    f"has been built and is ready for iteration toward production."))
+story.append(spacer(8))
 
-    story.extend(section("2. The Landing Page (continued)", [
-        sub("2d. The Floating Dashboard Mockup"),
-        body("This is the hero image \u2014 a fake terminal screenshot that floats and rotates in 3D:"),
-        bullet("<b>3D perspective:</b> The parent div has <font face='Courier' size='9'>perspective: 1200px</font>. The inner div uses the <font face='Courier' size='9'>float</font> CSS animation: <font face='Courier' size='9'>translateY(0px) rotateX(8deg) rotateY(-4deg)</font> oscillating to <font face='Courier' size='9'>translateY(-16px) rotateX(6deg) rotateY(-2deg)</font> over 8 seconds."),
-        bullet("<b>Glow shadow:</b> <font face='Courier' size='9'>box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 120px rgba(0,212,170,0.06)</font> \u2014 a deep shadow plus a subtle green ambient glow."),
-        bullet("<b>macOS title bar dots:</b> Three small circles (#FF5F57 red, #FEBC2E yellow, #28C840 green) to mimic a macOS window."),
-        bullet("<b>Animated bar chart:</b> 20 bars with staggered <font face='Courier' size='9'>barGrow</font> animation (scaleY from 0 to 1), each delayed by <font face='Courier' size='9'>i * 0.04s</font> for a cascade effect. Bars alternate between green (bullish) and red (bearish) gradients."),
-        bullet("<b>SVG funding overlay:</b> An inline SVG with a curved <font face='Courier' size='9'>&lt;path&gt;</font> using quadratic Bezier curves and a gradient stroke."),
-        body("<b>Built with:</b> The entire mockup is a React component (<font face='Courier' size='9'>DashboardMockup</font>) \u2014 no images, no screenshots. It's JSX rendering divs with inline styles, plus one inline SVG. The animation is pure CSS."),
+metrics_data = [
+    ["Total API Endpoints", "25+", "Implemented"],
+    ["Database Models", "10", "Production-ready"],
+    ["React Components", "30+", "Built"],
+    ["Pages / Routes", "15+", "Functional"],
+    ["Auth Providers", "3 (Email, Google, Demo)", "Active"],
+]
+story.append(make_table(
+    ["Demo Metrics", "Value", "Status"], metrics_data,
+    col_widths=[2.5*inch, 2.5*inch, 1.5*inch]))
+story.append(PageBreak())
 
-        sub("2e. Stats Counter Bar"),
-        body("The '20+ Assets / &lt;500ms Latency / 14 Data Sources / 99% Uptime' section:"),
-        bullet("<b>Counting animation:</b> A custom <font face='Courier' size='9'>Counter</font> component that uses <font face='Courier' size='9'>setInterval</font> at 16ms (~60fps) to increment from 0 to the target number over 2 seconds."),
-        bullet("<b>Trigger on scroll:</b> Uses a custom <font face='Courier' size='9'>useInView</font> hook built with the <b>Intersection Observer API</b>. The counter only starts when the element scrolls into view."),
-        bullet("<b>Gradient text:</b> The numbers use <font face='Courier' size='9'>background: linear-gradient(135deg, #00D4AA, #3B82F6)</font> with <font face='Courier' size='9'>-webkit-background-clip: text</font>."),
+# ── 2. CORE VALUE PROPOSITION ──
+story.append(section("2", "Core Value Proposition"))
+story.append(hr())
 
-        sub("2f. Features Grid"),
-        body("Six cards showing the core modules. Each card:"),
-        bullet("Uses our <b>NeuCard</b> component with <font face='Courier' size='9'>glow</font> prop (adds green glow on hover)."),
-        bullet("Has an icon in a gradient-bordered container with a subtle box-shadow glow matching the feature color."),
-        bullet("Fades in on scroll using the <b>Reveal</b> component (Intersection Observer + CSS opacity/transform transition with staggered delays)."),
+story.append(sub(f"{accent('For Analysts')} \u2014 Monetize Trading Expertise"))
+story.append(bullet("Publish timestamped, immutable trading signals that build a verified track record"))
+story.append(bullet("Create visual chart annotations (trend lines, zones, notes) for subscribers"))
+story.append(bullet("Build a subscriber base and earn recurring revenue through tiered subscriptions ($50\u2013$2,000/mo)"))
+story.append(bullet("Performance metrics are auto-calculated \u2014 no manual reporting needed"))
+story.append(spacer(8))
 
-        sub("2g. Tech Strip + CTA + Footer"),
-        bullet("<b>Tech pills:</b> ['Next.js', 'FastAPI', 'TimescaleDB', 'Redis', 'Binance WS', 'CoinGlass', 'WebSocket', 'Python'] rendered as neumorphic-styled pills. Each fades in on scroll."),
-        bullet("<b>CTA card:</b> A large neumorphic card with a radial green glow behind the heading. 'Launch Scope Alpha' button navigates to /terminal."),
-        bullet("<b>Footer:</b> Logo + tagline, very minimal."),
-    ]))
-    story.append(PageBreak())
+story.append(sub(f"{accent('For Subscribers')} \u2014 Access Verified Strategies"))
+story.append(bullet("Browse analysts filtered by win rate, P&amp;L, trading style, price, and rating"))
+story.append(bullet("Access verified trading strategies instead of trusting unverified social media callouts"))
+story.append(bullet("Get real-time signals and chart annotations directly on trading charts"))
+story.append(bullet("Leave reviews and ratings to help the community identify top performers"))
+story.append(spacer(8))
 
-    # ══════════════════════════════════════════════════════════════
-    #  3. TERMINAL SHELL
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("3. The Terminal Shell", [
-        body("When you click 'Launch Terminal', Next.js navigates to <font face='Courier' size='9'>/terminal</font>. This route has its own <b>layout</b> (<font face='Courier' size='9'>app/terminal/layout.tsx</font>) that wraps all 6 terminal pages with a persistent sidebar and top bar."),
+story.append(sub(f"{accent('For the Market')} \u2014 Accountability &amp; Transparency"))
+story.append(bullet("All signals are timestamped and immutable after publication \u2014 no retroactive editing"))
+story.append(bullet("Performance metrics are auto-calculated from resolved trades, not self-reported"))
+story.append(bullet("Brings accountability to an industry plagued by unverifiable claims"))
+story.append(PageBreak())
 
-        sub("3a. Sidebar (components/layout/Sidebar.tsx)"),
-        bullet("<b>Navigation:</b> 6 items \u2014 Dashboard (\u2318), Funding (\u26a1), Open Interest (\u25ce), Liquidations, Basis (\u25c8), Screener (\u229e). Each is a button that calls <font face='Courier' size='9'>router.push(path)</font>."),
-        bullet("<b>Active state:</b> Detected by comparing <font face='Courier' size='9'>usePathname()</font> to the item's path. Active items get a green left border + green tinted background."),
-        bullet("<b>Collapsible:</b> The sidebar width toggles between 220px and 56px. State is in Zustand (<font face='Courier' size='9'>sidebarCollapsed</font>) so it persists across refreshes."),
-        bullet("<b>Logo:</b> Next.js <font face='Courier' size='9'>&lt;Image&gt;</font> component loading <font face='Courier' size='9'>/logo.png</font> from the public folder."),
-        bullet("<b>Background:</b> CSS gradient: <font face='Courier' size='9'>linear-gradient(180deg, #0F1219 0%, #0B0E14 100%)</font>."),
+# ── 3. CURRENT DEMO FEATURES ──
+story.append(section("3", "Current Demo Features"))
+story.append(hr())
+story.append(body(
+    f"The following features have been fully implemented in the demo. All features use "
+    f"mock/seeded data but are backed by {accent('production-ready API routes and database models')}."))
+story.append(spacer(6))
 
-        sub("3b. TopBar (components/layout/TopBar.tsx)"),
-        bullet("<b>Asset selector:</b> Shows the currently selected asset (e.g. 'BTC / USDT') from Zustand state. Has a dropdown arrow indicator (non-functional in prototype)."),
-        bullet("<b>Timeframe pills:</b> Seven buttons (1m, 5m, 15m, 1H, 4H, 1D, 1W). Active pill has green tint + inset shadow (neumorphic pressed state). Inactive pills have raised shadow."),
-        bullet("<b>Connection status:</b> A pulsing green dot with 'Live' label. This is fake \u2014 <font face='Courier' size='9'>connectionStatus</font> is hardcoded to 'connected' in the Zustand store."),
-        bullet("<b>Settings gear:</b> An inline SVG icon (no functionality, just visual)."),
-        bullet("<b>Glass effect:</b> <font face='Courier' size='9'>background: rgba(15,18,25,0.8)</font> + <font face='Courier' size='9'>backdrop-filter: blur(12px)</font>."),
+story.append(sub("3.1  Derivatives Terminal"))
+story.append(body("The main trading dashboard provides a comprehensive view of crypto derivatives markets:"))
+story.append(bullet(f"{bold('Price Charts')} \u2014 TradingView-like charting powered by Lightweight Charts library"))
+story.append(bullet(f"{bold('Health Score Dashboard')} \u2014 Composite metric combining funding rates, open interest, liquidations, and basis"))
+story.append(bullet(f"{bold('Funding Rate Analysis')} \u2014 Current rates, 8-hour average, annualized carry, z-score, by-exchange breakdown"))
+story.append(bullet(f"{bold('Open Interest Tracker')} \u2014 Aggregate OI, net changes, per-exchange breakdown"))
+story.append(bullet(f"{bold('Liquidation Monitor')} \u2014 Long/short liquidation volumes with exchange heatmap"))
+story.append(bullet(f"{bold('Perpetual Basis Analyzer')} \u2014 Basis percentage, annualized rate, per-exchange comparison"))
+story.append(bullet(f"{bold('Multi-Asset Screener')} \u2014 Sortable table with sparklines across all metrics and regime classification"))
+story.append(spacer(6))
 
-        sub("3c. Keyboard Shortcuts (components/terminal/KeyboardShortcuts.tsx)"),
-        bullet("Press <b>?</b> to show a modal overlay listing all shortcuts."),
-        bullet("Press <b>1-6</b> to navigate directly to any page."),
-        bullet("Uses <font face='Courier' size='9'>window.addEventListener('keydown')</font> with <font face='Courier' size='9'>useCallback</font> to avoid stale closures."),
-        bullet("The overlay is a <font face='Courier' size='9'>fixed inset-0</font> div with <font face='Courier' size='9'>bg-black/60 backdrop-blur-sm</font> backdrop."),
-        bullet("Ignores keypresses when focus is in an input or textarea."),
+story.append(sub("3.2  Analyst Marketplace"))
+story.append(bullet("Browse and search analysts by name"))
+story.append(bullet("Filter by subscription price, win rate, primary asset, subscriber count, and rating"))
+story.append(bullet("Sort by subscribers, win rate, P&amp;L, price, rating, or newest"))
+story.append(bullet("Analyst cards display key metrics with performance sparklines"))
+story.append(bullet("Individual profile pages show full performance breakdown, active signals, and reviews"))
+story.append(spacer(6))
 
-        sub("3d. ErrorBoundary (components/ui/ErrorBoundary.tsx)"),
-        body("Wraps the main content area. If any page throws a render error, it catches it and shows a recovery UI instead of crashing the whole terminal."),
-    ]))
-    story.append(PageBreak())
+story.append(sub("3.3  Signal System (Trading Callouts)"))
+story.append(bullet(f"Create signals with {accent('asset, direction (long/short), entry/target/stop prices')}"))
+story.append(bullet("Timeframe support: 1m, 5m, 15m, 1H, 4H, 1D, 1W"))
+story.append(bullet("Conviction levels: low, medium, high"))
+story.append(bullet(f"{bold('Immutable publish timestamps')} \u2014 signals cannot be edited after publication"))
+story.append(bullet("Validation logic ensures price coherence (longs: target > entry > stop; shorts: inverse)"))
+story.append(bullet("Manual resolution records actual closing price and calculates result P&amp;L %"))
+story.append(spacer(6))
 
-    # ══════════════════════════════════════════════════════════════
-    #  4. DASHBOARD
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("4. Dashboard Page", [
-        body("File: <font face='Courier' size='9'>app/terminal/page.tsx</font> (85 lines). This is the default view when you enter the terminal."),
+story.append(sub("3.4  Chart Annotation System"))
+story.append(bullet("Horizontal trend lines with customizable labels"))
+story.append(bullet("Support/resistance zones rendered as colored areas"))
+story.append(bullet("Text notes placed at specific price levels"))
+story.append(bullet("Per-asset, per-timeframe storage with active/draft status"))
+story.append(bullet("Real-time sync across the UI via Zustand state management"))
+story.append(spacer(6))
 
-        sub("4a. Stats Bar (Top Row)"),
-        body("Four <font face='Courier' size='9'>DataCell</font> components showing: Health Score, Funding Rate, Open Interest, Basis (Annualized)."),
-        bullet("Data comes from calling <font face='Courier' size='9'>generateFundingData(selectedAsset)</font>, <font face='Courier' size='9'>generateOIData(selectedAsset)</font>, <font face='Courier' size='9'>generateHealthScore(selectedAsset)</font>."),
-        bullet("All wrapped in <font face='Courier' size='9'>useMemo</font> keyed on <font face='Courier' size='9'>selectedAsset</font>, so they only recalculate when you switch assets."),
+story.append(sub("3.5  Performance Analytics"))
+story.append(body("All metrics are auto-calculated from resolved signals:"))
+story.append(bullet("Win rate, average P&amp;L per trade, profit factor, risk/reward ratio"))
+story.append(bullet("Best and worst winning/losing streaks"))
+story.append(bullet("Total P&amp;L and rolling 90-day P&amp;L tracking"))
+story.append(bullet("Monthly returns chart and cumulative P&amp;L curve visualization"))
+story.append(spacer(6))
 
-        sub("4b. Candlestick Chart"),
-        body("The big chart is powered by <b>TradingView Lightweight Charts</b> \u2014 this is the only external charting library in the entire app."),
-        bullet("<b>Component:</b> <font face='Courier' size='9'>components/charts/PriceChart.tsx</font> (138 lines)."),
-        bullet("<b>How it works:</b> On mount, it calls <font face='Courier' size='9'>createChart()</font> from the <font face='Courier' size='9'>lightweight-charts</font> npm package, attaches it to a div ref, and creates two series: a <b>CandlestickSeries</b> (price) and a <b>HistogramSeries</b> (volume)."),
-        bullet("<b>Colors:</b> Green (#10B981) for bullish candles, Red (#EF4444) for bearish. Volume bars are 30% opacity versions of the same colors."),
-        bullet("<b>Styling:</b> Grid lines at rgba(255,255,255,0.03), crosshair at 0.15 opacity, JetBrains Mono font for axis labels."),
-        bullet("<b>Data:</b> Generated by <font face='Courier' size='9'>generateCandles(basePrice, count)</font> from <font face='Courier' size='9'>mockData.ts</font>. Returns OHLCV objects with realistic price action (drift + volatility model)."),
-        bullet("<b>Resize handling:</b> A <font face='Courier' size='9'>window.addEventListener('resize')</font> that calls <font face='Courier' size='9'>chart.applyOptions()</font> with new dimensions."),
+story.append(sub("3.6  Subscription &amp; Monetization"))
+story.append(bullet("Analysts create 1\u20133 subscription tiers at different price points"))
+story.append(bullet("Each tier includes a description and feature list"))
+story.append(bullet("One active subscription per subscriber-analyst pair (uniqueness constraint)"))
+story.append(bullet("Stripe integration placeholder (mocked during demo, ready for production wiring)"))
+story.append(spacer(6))
 
-        sub("4c. Watchlist (Right Panel)"),
-        body("Component: <font face='Courier' size='9'>components/terminal/Watchlist.tsx</font> (85 lines)."),
-        bullet("Shows all 20 tracked instruments with rank, price, 24h change, and volume."),
-        bullet("<b>Sortable:</b> Click column headers to sort by rank, price, change, or volume."),
-        bullet("<b>Interactive:</b> Click any row to change <font face='Courier' size='9'>selectedAsset</font> in Zustand \u2014 the entire terminal updates reactively."),
-        bullet("Selected row gets a green left border + green background tint."),
-    ]))
-    story.append(PageBreak())
+story.append(sub("3.7  Community Features"))
+story.append(bullet(f"{bold('Chat')} \u2014 Room-based messaging with reply threads and message pinning"))
+story.append(bullet(f"{bold('Announcements')} \u2014 Analyst broadcasts delivered to all subscribers"))
+story.append(bullet(f"{bold('Reviews')} \u2014 Subscriber ratings (1\u20135 stars) with text reviews and analyst responses"))
+story.append(spacer(6))
 
-    # ══════════════════════════════════════════════════════════════
-    #  5. EVERY TERMINAL PAGE
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("5. Every Terminal Page", [
-        body("Each page follows the same pattern: import data generators, call them with <font face='Courier' size='9'>selectedAsset</font> in <font face='Courier' size='9'>useMemo</font>, render with inline SVG charts + DataCells + tables."),
+story.append(sub("3.8  Authentication &amp; Security"))
+story.append(bullet(f"{bold('Email/Password')} \u2014 Credentials provider with bcrypt password hashing"))
+story.append(bullet(f"{bold('Google OAuth')} \u2014 Optional social login via Google"))
+story.append(bullet(f"{bold('Demo Mode')} \u2014 One-click exploration without registration (auto-seeds analyst data)"))
+story.append(bullet("JWT session strategy with 30-day expiration"))
+story.append(bullet("Role-based access control: subscriber vs. analyst permissions on all endpoints"))
+story.append(PageBreak())
 
-        sub("5a. Open Interest (app/terminal/oi/page.tsx)"),
-        bullet("<b>Big OI card:</b> Shows aggregate OI with 1h/4h/24h change indicators."),
-        bullet("<b>OI/Market Cap ratio:</b> Calculated inline as a leverage proxy."),
-        bullet("<b>Momentum:</b> Compares average of last 24 hourly values vs previous 24."),
-        bullet("<b>OI vs Price Correlation:</b> Deterministic estimate using a seed derived from OI and price changes."),
-        bullet("<b>7-day area chart:</b> Inline SVG (<font face='Courier' size='9'>MiniChart</font> component) \u2014 168 data points, gradient fill, polyline stroke."),
-        bullet("<b>Exchange breakdown bar:</b> A horizontal stacked bar showing Binance (gold), OKX (white), Bybit (amber) proportions."),
-        bullet("<b>OI Leaderboard:</b> Table ranking all 20 instruments by OI size."),
+# ── 4. TECH STACK ──
+story.append(section("4", "Tech Stack"))
+story.append(hr())
 
-        sub("5b. Funding Rates (app/terminal/funding/page.tsx)"),
-        bullet("20-instrument funding rate table with z-score badges."),
-        bullet("Selected asset detail panel with SVG line chart of 90 funding rate data points."),
-        bullet("Exchange breakdown with horizontal bar comparison."),
+tech_rows = [
+    ["Frontend Framework", "Next.js 14.2.5, React 18.3.1, TypeScript 5.4.5"],
+    ["State Management", "Zustand 4.5.2 with localStorage persistence"],
+    ["Styling", "Tailwind CSS 3.4.4 with custom glass-morphism design system"],
+    ["Charts", "Lightweight Charts 4.2.0 (TradingView-like)"],
+    ["Icons", "Lucide React"],
+    ["Authentication", "NextAuth 4.24.13, JWT sessions, bcrypt, Google OAuth"],
+    ["Database", "PostgreSQL via Neon (cloud), connection pooling"],
+    ["ORM", "Prisma 6.19.2 with full schema migrations"],
+    ["Fonts", "Outfit (display), JetBrains Mono (code/data)"],
+    ["Build Tools", "PostCSS 8.4.38, Autoprefixer 10.4.19"],
+    ["Deployment", "Vercel (frontend) + Neon PostgreSQL (database)"],
+]
+story.append(make_table(["Layer", "Technology"], tech_rows,
+    col_widths=[2*inch, 4.5*inch]))
+story.append(PageBreak())
 
-        sub("5c. Liquidations (app/terminal/liquidations/page.tsx)"),
-        bullet("Scrolling liquidation event ticker."),
-        bullet("Long vs Short stacked bar with gradient fills."),
-        bullet("24-bar hourly liquidation volume chart (SVG stacked bars)."),
-        bullet("Top 10 largest liquidations table."),
+# ── 5. DATABASE ARCHITECTURE ──
+story.append(section("5", "Database Architecture"))
+story.append(hr())
+story.append(body("The database is modeled with Prisma ORM and deployed on Neon PostgreSQL. "
+    "The schema consists of 10 interconnected models:"))
+story.append(spacer(6))
 
-        sub("5d. Basis Monitor (app/terminal/basis/page.tsx)"),
-        bullet("Large basis display with contango/backwardation signal."),
-        bullet("30-day area chart (180 data points at 4h intervals)."),
-        bullet("<b>Dual-line overlay:</b> A <font face='Courier' size='9'>DualLineChart</font> component that normalizes two datasets to [0,1] and overlays them \u2014 basis (solid) vs funding rate (dashed)."),
-        bullet("Exchange basis comparison with progress bars."),
-        bullet("Basis leaderboard across all instruments."),
+db_rows = [
+    ["User", "Core account: email, password hash, display name, slug, role (subscriber/analyst), avatar, bio, social links"],
+    ["AnalystProfile", "Extended profile: tagline, primary assets, trading style, experience years, subscription acceptance flag"],
+    ["AnalystPerformance", "Calculated metrics: total signals, win count/rate, P&L %, profit factor, Sharpe-like ratios, subscriber count"],
+    ["Signal", "Trading callouts: asset, direction, entry/target/stop, timeframe, conviction, publish timestamp, result P&L %"],
+    ["Annotation", "Chart drawings: horizontal lines, zones, text notes tied to asset/timeframe with active/draft status"],
+    ["SubscriptionTier", "Pricing tiers per analyst ($50-$2,000/mo) with feature lists"],
+    ["Subscription", "Links subscribers to analysts: tier, period dates, Stripe integration fields"],
+    ["ChatMessage", "Room-based messaging with reply threads and pinning support"],
+    ["Announcement", "Analyst broadcasts delivered to subscribers"],
+    ["Review", "Subscriber ratings (1-5 stars) with text content and analyst responses"],
+]
+story.append(make_table(["Model", "Description"], db_rows,
+    col_widths=[1.6*inch, 4.9*inch]))
+story.append(spacer(10))
 
-        sub("5e. Screener (app/terminal/screener/page.tsx)"),
-        bullet("Full-width sortable table with 11 columns + sparkline mini-charts."),
-        bullet("Click any header to sort. Active sort column highlighted in green."),
-        bullet("Health score cells have dynamically calculated background opacity based on score."),
-        bullet("Regime badges use <font face='Courier' size='9'>getRegimeColor()</font> to map 'Risk Off'/'Cautious'/'Neutral'/'Risk On'/'Overheated' to color schemes."),
-        bullet("Click any row to select that asset globally."),
+story.append(sub("Key Relationships &amp; Constraints"))
+story.append(bullet("User 1:1 AnalystProfile (created on role upgrade)"))
+story.append(bullet("User 1:1 AnalystPerformance (auto-calculated from signals)"))
+story.append(bullet("AnalystProfile 1:N Signal, Annotation, SubscriptionTier, Announcement"))
+story.append(bullet("User (subscriber) N:M AnalystProfile via Subscription (unique per pair)"))
+story.append(bullet("User (subscriber) 1:N Review per analyst (one review per analyst)"))
+story.append(bullet("ChatMessage self-referencing for reply threads"))
+story.append(PageBreak())
 
-        Spacer(1, 6),
-        callout("<b>Key technical point:</b> Every chart on every page is an <b>inline SVG</b> \u2014 there's no D3, no Recharts, no Chart.js. Each chart is a React component that calculates SVG coordinates from data arrays and renders &lt;polyline&gt;, &lt;polygon&gt;, &lt;rect&gt;, etc. This means <b>zero additional bundle size</b> for charts."),
-    ]))
-    story.append(PageBreak())
+# ── 6. API ARCHITECTURE ──
+story.append(section("6", "API Architecture"))
+story.append(hr())
+story.append(body(
+    "All API routes follow RESTful conventions with role-based authorization. "
+    "Mutation endpoints require authentication and verify user roles before processing."))
+story.append(spacer(6))
 
-    # ══════════════════════════════════════════════════════════════
-    #  6. DESIGN SYSTEM
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("6. The Design System", [
-        sub("6a. NeuCard (components/ui/NeuCard.tsx)"),
-        body("The primary container component used everywhere. 40 lines of code."),
-        bullet("<b>Background:</b> <font face='Courier' size='9'>linear-gradient(145deg, rgba(18,22,32,0.6), rgba(13,16,26,0.6))</font> \u2014 a subtle diagonal gradient."),
-        bullet("<b>Glassmorphism:</b> <font face='Courier' size='9'>backdrop-filter: blur(20px)</font>."),
-        bullet("<b>Neumorphic shadows:</b> Raised state = <font face='Courier' size='9'>6px 6px 20px rgba(0,0,0,0.4), -3px -3px 10px rgba(255,255,255,0.02)</font>. Two shadows, one dark (bottom-right) and one light (top-left), creating the 3D emboss effect."),
-        bullet("<b>Hover state:</b> Border changes from white/5% to green/20%, shadow deepens, optional green glow."),
-        bullet("<b>Props:</b> <font face='Courier' size='9'>glow</font> (adds green ambient glow), <font face='Courier' size='9'>noPadding</font> (for tables that need edge-to-edge content), <font face='Courier' size='9'>onClick</font> (adds pointer cursor + lift on hover)."),
+api_rows = [
+    ["Auth", "/api/auth/*", "Signup, demo login, NextAuth (credentials + OAuth)"],
+    ["Users", "/api/users/*", "Profile management, become-analyst upgrade"],
+    ["Signals", "/api/signals/*", "CRUD with price validation, analyst-only mutations"],
+    ["Annotations", "/api/annotations/*", "CRUD for chart drawings, analyst-only mutations"],
+    ["Subscriptions", "/api/subscriptions/*", "Subscribe, manage, cancel (mock Stripe)"],
+    ["Tiers", "/api/subscription-tiers/*", "Create/fetch pricing tiers, analyst-only creation"],
+    ["Reviews", "/api/reviews/*", "Create reviews (subscriber-only), analyst responses"],
+    ["Chat", "/api/chat/[roomId]", "Room-based messaging with cursor pagination"],
+    ["Announcements", "/api/announcements/*", "Create/fetch broadcasts, analyst-only creation"],
+    ["Analysts", "/api/analysts/[slug]", "Public analyst profile lookup by slug"],
+]
+story.append(make_table(["Group", "Endpoint Pattern", "Description"], api_rows,
+    col_widths=[1.2*inch, 2*inch, 3.3*inch]))
+story.append(spacer(10))
 
-        sub("6b. NeuButton (components/ui/NeuButton.tsx)"),
-        body("Neumorphic button with press animation. 51 lines."),
-        bullet("<b>Primary variant:</b> Green gradient background, dark text, green glow shadow."),
-        bullet("<b>Default variant:</b> Dark gradient background, light text, subtle shadow."),
-        bullet("<b>Press effect:</b> On mouseDown, shadow changes from raised to <font face='Courier' size='9'>inset</font> and scale drops to 0.97. This creates the physical 'pushed in' neumorphic feel."),
+story.append(sub("Authorization Pattern"))
+story.append(body("Every mutation endpoint follows a consistent authorization check:"))
+story.append(bullet("Verify JWT session exists (401 Unauthorized if not)"))
+story.append(bullet("Check user role matches required permission (403 Forbidden if not)"))
+story.append(bullet("Validate request body against expected schema"))
+story.append(bullet("Execute database operation within Prisma transaction where needed"))
+story.append(PageBreak())
 
-        sub("6c. DataCell (components/ui/DataCell.tsx)"),
-        body("Standardized metric display. Used for every stat box across all pages."),
-        bullet("Shows: label (10px mono uppercase), value (18px bold mono, colored), optional change indicator, optional subtitle."),
-        bullet("Background: <font face='Courier' size='9'>bg-white/[0.02]</font> with <font face='Courier' size='9'>border border-white/[0.04]</font>."),
+# ── 7. PRODUCT ROADMAP ──
+story.append(section("7", "Product Roadmap"))
+story.append(hr())
+story.append(body(
+    "The following roadmap outlines the path from demo to production and beyond. "
+    "Each phase builds on the previous, with Phase 1 being the minimum viable product."))
+story.append(spacer(8))
 
-        sub("6d. Badge (components/ui/Badge.tsx)"),
-        body("Colored pill labels. 6 variants: green, red, yellow, blue, purple, gray."),
-        bullet("Each variant maps to a Tailwind class string like <font face='Courier' size='9'>bg-emerald-500/15 text-emerald-400 border-emerald-500/20</font>."),
-        bullet("10px monospace font, semibold, rounded corners."),
+story.append(sub(f"{accent('Phase 1')} \u2014 Core Infrastructure {muted('(MVP)')}"))
+story.append(body("Essential integrations needed to transition from demo to a functional product:"))
+story.append(bullet(f"{bold('Real-time Market Data Feeds')} \u2014 WebSocket integration with exchanges (Binance, Bybit, OKX) for live OHLC, funding rates, OI, and liquidation data"))
+story.append(bullet(f"{bold('Stripe Payment Integration')} \u2014 Subscription billing, analyst payouts, platform commission handling"))
+story.append(bullet(f"{bold('Email Verification &amp; Notifications')} \u2014 Account verification, signal alerts, subscription confirmations"))
+story.append(bullet(f"{bold('Real-time Signal Notifications')} \u2014 Push notifications, email alerts, and Telegram bot integration for instant signal delivery"))
+story.append(spacer(8))
 
-        sub("6e. Color Palette"),
-        Spacer(1, 4),
-        ColorSwatch("#0B0E14", "Background (base) - used on body and root"),
-        ColorSwatch("#0F1219", "Surface - sidebar, elevated panels"),
-        ColorSwatch("#131620", "Elevated - card interiors, table headers"),
-        ColorSwatch("#00D4AA", "Accent Green - primary actions, positive values, nav active"),
-        ColorSwatch("#8B5CF6", "Accent Purple - basis data, secondary accent"),
-        ColorSwatch("#3B82F6", "Accent Blue - OI data, informational"),
-        ColorSwatch("#F59E0B", "Accent Yellow - warnings, selected asset dot"),
-        ColorSwatch("#EF4444", "Negative - bearish, liquidations, errors"),
-        ColorSwatch("#10B981", "Positive - bullish candles, positive changes"),
-        ColorSwatch("#EC4899", "Accent Pink - health score, special highlights"),
-    ]))
-    story.append(PageBreak())
+story.append(sub(f"{accent('Phase 2')} \u2014 Enhanced Features"))
+story.append(body("Feature enhancements that increase platform stickiness and value:"))
+story.append(bullet(f"{bold('Copy Trading / Auto-Execution')} \u2014 Allow subscribers to auto-mirror analyst trades on connected exchange accounts"))
+story.append(bullet(f"{bold('Advanced Charting Tools')} \u2014 Fibonacci retracements, trend channels, pattern recognition overlays"))
+story.append(bullet(f"{bold('Portfolio Tracking')} \u2014 Subscribers track their P&amp;L from followed signals in a unified dashboard"))
+story.append(bullet(f"{bold('Analyst Leaderboards')} \u2014 Time-weighted rankings with multiple scoring criteria"))
+story.append(bullet(f"{bold('Social Features')} \u2014 Follow, like, share signals; social feed of analyst activity"))
+story.append(spacer(8))
 
-    # ══════════════════════════════════════════════════════════════
-    #  7. DATA LAYER
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("7. The Data Layer", [
-        body("File: <font face='Courier' size='9'>lib/mockData.ts</font> (359 lines). This is the heart of the data pipeline."),
+story.append(sub(f"{accent('Phase 3')} \u2014 Platform Growth"))
+story.append(body("Expansion features for broader market reach:"))
+story.append(bullet(f"{bold('Mobile App')} \u2014 React Native cross-platform app for iOS and Android"))
+story.append(bullet(f"{bold('API Access')} \u2014 Programmatic signal consumption for algorithmic traders and third-party integrations"))
+story.append(bullet(f"{bold('Custom Indicator Marketplace')} \u2014 Pine Script equivalent for creating and selling custom indicators"))
+story.append(bullet(f"{bold('Research Publishing')} \u2014 Platform for analysts to publish long-form research papers and market analysis"))
+story.append(bullet(f"{bold('Backtesting Engine')} \u2014 Historical strategy validation against real market data"))
+story.append(bullet(f"{bold('Multi-Asset Expansion')} \u2014 Extend beyond crypto to forex, stocks, commodities, and indices"))
+story.append(spacer(8))
 
-        sub("7a. Seeded PRNG (mulberry32)"),
-        body("Instead of <font face='Courier' size='9'>Math.random()</font>, we use a <b>seeded pseudo-random number generator</b> called mulberry32. This is a well-known 32-bit hash-based PRNG."),
-        code(
-            "function mulberry32(seed: number) {\n"
-            "  let s = seed | 0;\n"
-            "  return (): number =&gt; {\n"
-            "    s = (s + 0x6d2b79f5) | 0;\n"
-            "    let t = Math.imul(s ^ (s &gt;&gt;&gt; 15), 1 | s);\n"
-            "    t = (t + Math.imul(t ^ (t &gt;&gt;&gt; 7), 61 | t)) ^ t;\n"
-            "    return ((t ^ (t &gt;&gt;&gt; 14)) &gt;&gt;&gt; 0) / 4294967296;\n"
-            "  };\n"
-            "}"
-        ),
-        bullet("<b>Seed derivation:</b> Each asset symbol (e.g. 'BTC') is hashed to a number using <font face='Courier' size='9'>Math.imul(31, h) + charCode</font>. Then different data types append a suffix (e.g. 'BTCfunding', 'BTCoi') for unique seeds per data type."),
-        bullet("<b>Why?</b> Server-side rendering and client-side rendering must produce identical output. <font face='Courier' size='9'>Math.random()</font> gives different values each call, causing React hydration mismatches. Seeded PRNG gives the same sequence every time for the same seed."),
+story.append(sub(f"{accent('Phase 4')} \u2014 Enterprise"))
+story.append(body("Institutional-grade features for professional firms:"))
+story.append(bullet(f"{bold('Institutional Verification')} \u2014 KYC/AML compliance for analyst identity verification"))
+story.append(bullet(f"{bold('White-Label Solutions')} \u2014 Customizable platform for trading firms and hedge funds"))
+story.append(bullet(f"{bold('Audit Trail &amp; Compliance')} \u2014 Full reporting for regulatory requirements"))
+story.append(bullet(f"{bold('Admin Analytics Dashboard')} \u2014 Platform-wide metrics, user behavior, and revenue analytics"))
+story.append(PageBreak())
 
-        sub("7b. The 20 Instruments"),
-        body("Hardcoded in <font face='Courier' size='9'>INSTRUMENT_DEFS</font>: BTC, ETH, SOL, BNB, XRP, ADA, AVAX, DOGE, DOT, LINK, MATIC, UNI, ATOM, LTC, NEAR, APT, ARB, OP, FIL, INJ. Each has a realistic base price, market cap, and 24h volume."),
+# ── 8. REVENUE MODEL ──
+story.append(section("8", "Revenue Model"))
+story.append(hr())
 
-        sub("7c. Mock Generators"),
-        body("Each generator takes a symbol string and returns structured data:"),
-        bullet("<b>generateCandles(basePrice, count)</b> \u2014 Simulates OHLCV candles with drift + volatility model. Uses a fixed base timestamp (2025-03-17T00:00:00Z) to avoid server/client time differences."),
-        bullet("<b>generateFundingData(symbol)</b> \u2014 Current rate, 8h avg, z-score, annualized carry, 90-point history (30 days at 8h intervals), per-exchange breakdown."),
-        bullet("<b>generateOIData(symbol)</b> \u2014 Aggregate OI (1-5% of market cap), 1h/4h/24h changes, 168-point history (7 days hourly), per-exchange split."),
-        bullet("<b>generateLiquidationData(symbol)</b> \u2014 50 liquidation events with random sides/amounts/exchanges, 24-bar hourly volume history."),
-        bullet("<b>generateBasisData(symbol)</b> \u2014 Current basis, annualized, 180-point history (30 days at 4h), per-exchange comparison."),
-        bullet("<b>generateHealthScore(symbol)</b> \u2014 Composite score from funding (30%), OI (25%), liquidation (25%), basis (20%) components. Maps to regime labels."),
-        bullet("<b>generateScreenerData()</b> \u2014 Calls all the above for every instrument and combines into a flat row for the screener table."),
+rev_rows = [
+    ["Subscription Commission", "15\u201325% of all analyst subscription revenue", "Primary"],
+    ["Premium Listings", "Paid placement for analyst visibility in marketplace", "Secondary"],
+    ["Featured Promotions", "Analysts pay for featured placement and boosted visibility", "Secondary"],
+    ["API Access Tiers", "Paid tiers for programmatic signal access (developers, algo traders)", "Future"],
+    ["Enterprise Licensing", "White-label platform licensing for trading firms", "Future"],
+]
+story.append(make_table(["Revenue Stream", "Description", "Priority"], rev_rows,
+    col_widths=[1.8*inch, 3.5*inch, 1.2*inch]))
+story.append(spacer(10))
+story.append(body(
+    "The primary revenue driver is the platform commission on analyst subscriptions. "
+    "With analyst tiers ranging from $50 to $2,000/month, even a modest analyst base "
+    "generates meaningful recurring revenue. Secondary streams diversify income as the "
+    "platform scales."))
+story.append(PageBreak())
 
-        Spacer(1, 6),
-        callout("<b>If someone asks 'can you swap in real data?':</b> Yes. Each generator returns TypeScript interfaces (FundingData, OpenInterestData, etc.) that match what real exchange APIs return. You'd replace the generator function with an API call and the UI components wouldn't change at all."),
-    ]))
-    story.append(PageBreak())
+# ── 9. COMPETITIVE ADVANTAGES ──
+story.append(section("9", "Competitive Advantages"))
+story.append(hr())
 
-    # ══════════════════════════════════════════════════════════════
-    #  8. STATE MANAGEMENT + HYDRATION
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("8. State Management &amp; Hydration", [
-        sub("8a. Zustand Store (lib/store.ts)"),
-        body("The entire app has one global store with 4 pieces of state:"),
-        code(
-            "selectedAsset: string      // e.g. 'BTC'\n"
-            "selectedTimeframe: TimeFrame // e.g. '1D'\n"
-            "sidebarCollapsed: boolean\n"
-            "connectionStatus: 'connected' | 'connecting' | 'disconnected'"
-        ),
-        bullet("<b>Zustand</b> is a tiny state library (1.2KB). You call <font face='Courier' size='9'>create()</font> with a function that returns your state + actions. Components use <font face='Courier' size='9'>useAppStore()</font> hook to read/write."),
-        bullet("<b>Persist middleware:</b> Wraps the store so state is automatically saved to <font face='Courier' size='9'>localStorage</font> under the key <font face='Courier' size='9'>scope-alpha-state</font>. This means if you select ETH, close the browser, and come back, ETH is still selected."),
+story.append(bullet(f"{bold('Immutable, Timestamped Signals')} \u2014 Unlike social media callouts, signals cannot be retroactively edited or deleted. This creates genuine accountability."))
+story.append(spacer(4))
+story.append(bullet(f"{bold('Transparent Performance Metrics')} \u2014 All metrics are auto-calculated from resolved trades, eliminating self-reported and potentially fabricated performance claims."))
+story.append(spacer(4))
+story.append(bullet(f"{bold('Professional-Grade Charting')} \u2014 Integrated charting with analyst annotation overlay, not just text-based signals. Subscribers see exactly what the analyst sees."))
+story.append(spacer(4))
+story.append(bullet(f"{bold('Derivatives-Focused')} \u2014 Purpose-built for derivatives trading with funding rates, open interest, liquidations, and basis analysis. Not a generic signals platform."))
+story.append(spacer(4))
+story.append(bullet(f"{bold('Modern Tech Stack')} \u2014 Next.js 14, React 18, TypeScript, Prisma, Zustand \u2014 enabling rapid iteration and a responsive user experience."))
+story.append(spacer(4))
+story.append(bullet(f"{bold('Glass-Morphism UI')} \u2014 A distinctive, modern design language that differentiates from legacy trading platforms and signals services."))
+story.append(PageBreak())
 
-        sub("8b. The Hydration Problem"),
-        body("This was the biggest technical challenge in the project:"),
-        bullet("1. Server renders the page with <b>default state</b> (selectedAsset = 'BTC')."),
-        bullet("2. HTML arrives at the browser. React 'hydrates' it \u2014 attaches event listeners to the existing HTML."),
-        bullet("3. Zustand's persist middleware loads saved state from localStorage (selectedAsset = 'ETH')."),
-        bullet("4. React sees that the server HTML says 'BTC' but the client wants 'ETH'. <b>Hydration mismatch error.</b>"),
+# ── 10. CURRENT LIMITATIONS ──
+story.append(section("10", "Current Limitations (Demo State)"))
+story.append(hr())
+story.append(body(
+    "The following limitations are expected for a demo-stage product and represent "
+    "the gap between the current build and a production-ready platform:"))
+story.append(spacer(6))
 
-        sub("8c. The Solution: useHydrated() Hook"),
-        code(
-            "export function useHydrated() {\n"
-            "  const [hydrated, setHydrated] = useState(false);\n"
-            "  useEffect(() =&gt; setHydrated(true), []);\n"
-            "  return hydrated;\n"
-            "}"
-        ),
-        body("Every page that reads persisted state checks <font face='Courier' size='9'>if (!hydrated)</font> and shows a loading spinner. After <font face='Courier' size='9'>useEffect</font> fires (confirming hydration is complete), the real content renders with the correct persisted state."),
-        body("<font face='Courier' size='9'>useEffect</font> never runs on the server, and it runs after the first client render. So the first render on both server and client shows the spinner (matching). Then the effect fires, hydrated becomes true, and the real content appears with the correct state."),
+limits_rows = [
+    ["Market Data", "Mock/generated data, not live exchange feeds", "Phase 1"],
+    ["WebSocket Feeds", "No live real-time data streaming", "Phase 1"],
+    ["Payments", "Stripe not connected; subscriptions are mocked", "Phase 1"],
+    ["Email System", "No email verification or notifications", "Phase 1"],
+    ["State Persistence", "Some features use local state (Zustand) instead of DB", "Phase 1"],
+    ["Notifications", "No push, email, or Telegram signal alerts", "Phase 1"],
+    ["Mobile", "Basic responsive only; no dedicated mobile app", "Phase 3"],
+]
+story.append(make_table(["Area", "Limitation", "Resolved In"], limits_rows,
+    col_widths=[1.5*inch, 3.5*inch, 1.5*inch]))
+story.append(PageBreak())
 
-        Spacer(1, 6),
-        callout("<b>If someone asks 'why not just disable SSR?':</b> We could use Next.js <font face='Courier' size='9'>dynamic(() =&gt; import(...), {ssr: false})</font>, but that gives us no server HTML at all \u2014 worse for initial load and SEO. The useHydrated approach gives us server-rendered layout structure while deferring only the data-dependent content."),
-    ]))
-    story.append(PageBreak())
+# ── 11. CONCLUSION ──
+story.append(section("11", "Conclusion"))
+story.append(hr())
+story.append(body(
+    f"Scope Alpha demonstrates a {accent('functional proof-of-concept')} for a trading strategy "
+    f"marketplace. The core platform architecture \u2014 authentication, trading signals, chart annotations, "
+    f"subscriptions, reviews, and community chat \u2014 has been built with production-quality code patterns."))
+story.append(spacer(4))
+story.append(body(
+    f"The {accent('database schema, API routes, and frontend components')} are all designed for scalability "
+    f"and follow modern best practices (TypeScript, Prisma ORM, JWT auth, role-based access control). "
+    f"The glass-morphism design system provides a distinctive, professional visual identity."))
+story.append(spacer(4))
+story.append(body(
+    f"The immediate next steps focus on {accent('Phase 1')} of the roadmap: integrating real-time "
+    f"market data feeds, connecting Stripe for payment processing, implementing email notifications, "
+    f"and building real-time signal delivery. These integrations will transition Scope Alpha from "
+    f"a demo into a functional product ready for early users and market validation."))
+story.append(spacer(20))
+story.append(HRFlowable(width="40%", thickness=2, color=ACCENT, spaceAfter=12))
+story.append(Paragraph(
+    "Scope Alpha  |  March 2026  |  Confidential",
+    ParagraphStyle('EndNote', fontName='Helvetica', fontSize=10,
+                   textColor=TEXT_MUTED, alignment=TA_CENTER)))
 
-    # ══════════════════════════════════════════════════════════════
-    #  9. FONTS, CSS, TAILWIND
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("9. Fonts, CSS, Tailwind", [
-        sub("9a. Three Fonts"),
-        bullet("<b>Outfit</b> (display font) \u2014 Used for headings, titles, branding. Loaded via Next.js <font face='Courier' size='9'>next/font/google</font> with <font face='Courier' size='9'>--font-display</font> CSS variable."),
-        bullet("<b>Satoshi</b> (body font) \u2014 Used for body text. Loaded via Fontshare CDN link in <font face='Courier' size='9'>&lt;head&gt;</font>."),
-        bullet("<b>JetBrains Mono</b> (monospace) \u2014 Used for all data, numbers, tables, code-like content. Loaded via <font face='Courier' size='9'>next/font/google</font> with <font face='Courier' size='9'>--font-mono</font> CSS variable."),
-
-        sub("9b. globals.css (211 lines)"),
-        body("Contains:"),
-        bullet("<b>CSS custom properties (variables):</b> All colors, shadows, radii defined as <font face='Courier' size='9'>--bg-primary</font>, <font face='Courier' size='9'>--accent-green</font>, etc."),
-        bullet("<b>13 keyframe animations:</b> heroGlow, float, barGrow, pulse, pulseRed, fadeInUp, textShimmer, orbFloat, gradientShift, scanline, slideInLeft, flashGreen/Red, shimmer, spin, ticker."),
-        bullet("<b>Utility classes:</b> <font face='Courier' size='9'>.shimmer-text</font>, <font face='Courier' size='9'>.skeleton</font>, <font face='Courier' size='9'>.glass-panel</font>, <font face='Courier' size='9'>.neu-raised</font>, <font face='Courier' size='9'>.neu-pressed</font>, <font face='Courier' size='9'>.glow-green</font>, <font face='Courier' size='9'>.flash-green</font>, <font face='Courier' size='9'>.flash-red</font>, <font face='Courier' size='9'>.nav-active</font>."),
-        bullet("<b>Custom scrollbar:</b> 6px wide, transparent track, white/8% thumb."),
-
-        sub("9c. tailwind.config.ts"),
-        body("Extends the default Tailwind theme with:"),
-        bullet("15 custom color tokens (all the greens, blues, purples, etc.)"),
-        bullet("3 font family stacks (display, body, mono)"),
-        bullet("4 custom border-radius values (8/12/16/20px)"),
-        bullet("4 custom box-shadow presets (raised, pressed, glow-green, card-hover)"),
-    ]))
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════
-    #  10. FULL TECH STACK
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("10. Full Tech Stack Summary", []))
-
-    stack = [
-        ["What", "Technology", "Where It's Used"],
-        ["Framework", "Next.js 14 (App Router)", "File-based routing, server rendering, layout nesting"],
-        ["Language", "TypeScript (strict)", "Every file \u2014 30+ type interfaces in types.ts"],
-        ["Styling", "Tailwind CSS v3", "All components, custom design tokens in config"],
-        ["CSS Animations", "Pure CSS @keyframes", "13 animations in globals.css \u2014 no Framer Motion"],
-        ["State", "Zustand + persist", "store.ts \u2014 global asset/timeframe/sidebar state"],
-        ["Candlestick Charts", "TradingView Lightweight", "PriceChart.tsx \u2014 only external chart lib"],
-        ["All Other Charts", "Inline SVG (custom)", "Sparklines, area, bars, heatmaps \u2014 zero bundle cost"],
-        ["Font Loading", "next/font/google + CDN", "Outfit, JetBrains Mono via Next.js; Satoshi via CDN"],
-        ["Image Optimization", "next/image", "Logo in sidebar and landing page"],
-        ["Navigation", "next/navigation", "useRouter, usePathname for client-side routing"],
-        ["Scroll Animations", "Intersection Observer", "Custom useInView hook for scroll-triggered reveals"],
-        ["Data Generation", "Seeded PRNG (mulberry32)", "mockData.ts \u2014 deterministic fake data"],
-        ["Hydration Guard", "Custom useHydrated hook", "All 6 terminal pages"],
-    ]
-    st = Table(stack, colWidths=[1.2*inch, 1.8*inch, 3.0*inch])
-    st.setStyle(TableStyle([
-        ("FONT", (0,0), (-1,0), "Helvetica-Bold", 8.5),
-        ("FONT", (0,1), (-1,-1), "Helvetica", 8.5),
-        ("TEXTCOLOR", (0,0), (-1,0), white),
-        ("BACKGROUND", (0,0), (-1,0), HEADING_DARK),
-        ("TEXTCOLOR", (0,1), (-1,-1), BODY_TEXT),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("TOPPADDING", (0,0), (-1,-1), 4),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
-        ("LINEBELOW", (0,1), (-1,-2), 0.3, BORDER_GRAY),
-        ("LEFTPADDING", (0,0), (-1,-1), 5),
-        ("ROWBACKGROUNDS", (0,1), (-1,-1), [white, SECTION_BG]),
-    ]))
-    story.append(st)
-    story.append(Spacer(1, 8))
-    story.append(callout("<b>Important:</b> There is NO Framer Motion, no D3, no Chart.js, no Recharts, no Emotion, no styled-components. Animations are pure CSS keyframes. Charts are inline SVG. Styling is Tailwind utility classes + inline styles."))
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════
-    #  11. IS THERE A LIVE API?
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("11. Is There a Live API?", [
-        bold_body("No. There is no live API, no backend, no database, and no WebSocket connection."),
-        Spacer(1, 4),
-        body("Everything you see on screen is generated client-side by the seeded PRNG in <font face='Courier' size='9'>mockData.ts</font>. The 'Live' connection indicator is fake \u2014 it's hardcoded to 'connected' in the Zustand store."),
-        body("The landing page lists technologies like 'FastAPI', 'TimescaleDB', 'Redis', and 'Binance WS' in the tech strip \u2014 these are <b>planned</b> technologies for the backend, not currently implemented."),
-
-        sub("What would the backend look like?"),
-        bullet("<b>Data ingestion:</b> WebSocket connections to Binance, Bybit, OKX for real-time market data."),
-        bullet("<b>API server:</b> FastAPI (Python) serving REST endpoints and relaying WebSocket streams."),
-        bullet("<b>Storage:</b> PostgreSQL + TimescaleDB for time-series historical data."),
-        bullet("<b>Cache:</b> Redis for hot data (current rates, latest OI)."),
-        bullet("<b>Compute:</b> Background workers for z-scores, regime classification, health scores."),
-
-        sub("How hard is the swap?"),
-        body("The mock data generators return TypeScript interfaces (<font face='Courier' size='9'>FundingData</font>, <font face='Courier' size='9'>OpenInterestData</font>, etc.) that exactly match what real exchange APIs return. To go live, you'd replace each <font face='Courier' size='9'>generate*()</font> call with a React Query hook fetching from the real API. The UI components wouldn't change at all \u2014 they just consume the typed data."),
-    ]))
-
-    # ══════════════════════════════════════════════════════════════
-    #  12. Q&A CHEAT SHEET
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("12. Likely Questions &amp; Answers", []))
-    qa_items = [
-        ("What framework is this built on?",
-         "Next.js 14 with the App Router. It's React under the hood, but Next.js gives us file-based routing, server-side rendering, automatic code splitting, and optimized font/image loading."),
-        ("What's the chart library?",
-         "TradingView Lightweight Charts for the candlestick chart on the dashboard. Every other chart (area charts, bar charts, sparklines, heatmaps) is hand-built with inline SVG \u2014 no library at all."),
-        ("How do the animations work? Is that Framer Motion?",
-         "No external animation library. All animations are pure CSS @keyframes defined in globals.css. The landing page uses 8 different keyframe animations (fadeInUp, float, barGrow, textShimmer, orbFloat, heroGlow, pulse, ticker). Scroll-triggered animations use the browser's Intersection Observer API via a custom useInView() hook."),
-        ("How does the floating dashboard work?",
-         "It's a React component called DashboardMockup that renders divs and one inline SVG. The float effect is a CSS animation: translateY(0) rotateX(8deg) oscillating to translateY(-16px) rotateX(6deg) over 8 seconds. The parent has perspective: 1200px for the 3D effect."),
-        ("Is the data real?",
-         "No. All data is generated by a seeded PRNG (mulberry32 algorithm). The seed is derived from each asset's symbol, so the same asset always produces the same data. This was a deliberate choice to avoid hydration mismatches between server and client rendering."),
-        ("What's hydration?",
-         "In Next.js, the server renders HTML first, then the browser 'hydrates' it by attaching React event listeners. If the server and client produce different HTML, React throws errors. We use a useHydrated() hook to defer data-dependent rendering until after hydration completes."),
-        ("What state management are you using?",
-         "Zustand with the persist middleware. It's a 1.2KB library that gives us a global store with automatic localStorage sync. When you select an asset, it persists across page refreshes."),
-        ("What about the styling? Is that a CSS framework?",
-         "Tailwind CSS v3 with a custom configuration. We defined 15 custom colors, 3 font families, custom shadows, and border radii. The neumorphic effects (raised/pressed shadows) are a combination of Tailwind classes and inline styles."),
-        ("Can this handle real-time data?",
-         "The frontend architecture supports it. The mock data layer returns TypeScript interfaces that match real exchange API shapes. You'd swap the generator functions for WebSocket-fed React Query hooks. The UI components wouldn't need to change."),
-        ("How many lines of code is this?",
-         "Roughly 3,500 lines of TypeScript/TSX across 34 source files. The largest file is mockData.ts at 359 lines."),
-        ("Why not use Redux?",
-         "Zustand is simpler for our use case. We have 4 pieces of global state. Redux would add boilerplate (actions, reducers, selectors, provider) for no benefit. Zustand's persist middleware also handles localStorage automatically."),
-        ("Why inline SVG instead of a chart library?",
-         "Zero bundle size. A chart library like Recharts adds ~50KB. Our SVG charts are part of the component JSX \u2014 they add nothing to the bundle. Plus we get pixel-perfect control over every visual detail to match the neumorphic design language."),
-    ]
-    for q, a in qa_items:
-        story.extend(qa(q, a))
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════
-    #  13. FILE MAP
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("13. File Map \u2014 Every File and What It Does", [
-        sub("App Routes"),
-        file_line("app/layout.tsx            Root layout: loads fonts, global CSS, sets metadata"),
-        file_line("app/page.tsx              Entry point: renders LandingPage component"),
-        file_line("app/globals.css           CSS variables, 13 keyframe animations, utility classes"),
-        file_line("app/terminal/layout.tsx   Terminal shell: Sidebar + TopBar + ErrorBoundary"),
-        file_line("app/terminal/page.tsx     Dashboard: candlestick chart + watchlist + stats"),
-        file_line("app/terminal/oi/page.tsx  Open Interest: area chart + exchange bar + leaderboard"),
-        file_line("app/terminal/funding/     Funding rates: table + history chart + exchange breakdown"),
-        file_line("app/terminal/liquidations Liquidations: ticker + stacked bars + event table"),
-        file_line("app/terminal/basis/       Basis monitor: area chart + dual-line + leaderboard"),
-        file_line("app/terminal/screener/    Screener: full sortable table + sparklines"),
-        Spacer(1, 6),
-        sub("Components"),
-        file_line("components/landing/LandingPage.tsx     376 lines \u2014 entire landing experience"),
-        file_line("components/charts/PriceChart.tsx       138 lines \u2014 TradingView wrapper"),
-        file_line("components/layout/Sidebar.tsx           81 lines \u2014 collapsible nav sidebar"),
-        file_line("components/layout/TopBar.tsx            87 lines \u2014 asset selector + timeframes"),
-        file_line("components/terminal/Watchlist.tsx        85 lines \u2014 sortable asset table"),
-        file_line("components/terminal/KeyboardShortcuts    87 lines \u2014 ? overlay + 1-6 nav"),
-        file_line("components/ui/NeuCard.tsx               40 lines \u2014 neumorphic container"),
-        file_line("components/ui/NeuButton.tsx             51 lines \u2014 neumorphic button"),
-        file_line("components/ui/DataCell.tsx              29 lines \u2014 metric display cell"),
-        file_line("components/ui/Badge.tsx                 29 lines \u2014 colored pill label"),
-        file_line("components/ui/ErrorBoundary.tsx          \u2014 render error catcher"),
-        file_line("components/ui/Skeleton.tsx               \u2014 loading placeholder"),
-        Spacer(1, 6),
-        sub("Library"),
-        file_line("lib/store.ts             30 lines \u2014 Zustand store + persist config"),
-        file_line("lib/types.ts            108 lines \u2014 all TypeScript interfaces"),
-        file_line("lib/utils.ts             53 lines \u2014 formatPrice, formatPercent, cn(), colors"),
-        file_line("lib/mockData.ts         359 lines \u2014 seeded PRNG + all data generators"),
-        file_line("lib/useHydrated.ts        8 lines \u2014 hydration guard hook"),
-        Spacer(1, 6),
-        sub("Config"),
-        file_line("tailwind.config.ts       54 lines \u2014 custom colors, fonts, shadows"),
-        file_line("next.config.js                   \u2014 Next.js configuration"),
-        file_line("tsconfig.json                    \u2014 TypeScript strict mode"),
-        file_line("package.json                     \u2014 dependencies + scripts"),
-    ]))
-    story.append(PageBreak())
-
-    # ══════════════════════════════════════════════════════════════
-    #  14. HOW TO RUN
-    # ══════════════════════════════════════════════════════════════
-    story.extend(section("14. How to Run It", [
-        body("Requires <b>Node.js 20+</b>. No environment variables, no database, no external services."),
-        Spacer(1, 4),
-        code(
-            "cd scope-alpha/frontend\n"
-            "npm install\n"
-            "npm run dev\n"
-            "# Open http://localhost:3000"
-        ),
-        Spacer(1, 4),
-        body("Or on this machine, just double-click <font face='Courier' size='9'>Start_Scope_Alpha.bat</font> in the Alpha folder."),
-        Spacer(1, 8),
-        body("The landing page loads first. Click 'Launch Terminal' to enter the terminal. Use the sidebar or press 1-6 to switch between views. Click any asset in the watchlist or screener to change the selected instrument \u2014 all views update reactively."),
-        Spacer(1, 20),
-        ColorBar(width=480, height=2, color=ACCENT_GREEN),
-        Spacer(1, 12),
-        Paragraph("End of document. You've got this.", styles["Caption"]),
-    ]))
-
-    doc.build(story, onFirstPage=first_page_template, onLaterPages=footer_template)
-    print(f"PDF generated: {OUTPUT}")
-
-
-if __name__ == "__main__":
-    build_pdf()
+# Generate
+doc.build(story, onFirstPage=dark_page, onLaterPages=dark_page)
+print(f"PDF generated: {output_path}")
+print(f"Size: {os.path.getsize(output_path) / 1024:.1f} KB")

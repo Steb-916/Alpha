@@ -5,8 +5,13 @@ import { ChatDrawer } from "@/components/chat/ChatDrawer";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { KeyboardShortcuts } from "@/components/terminal/KeyboardShortcuts";
 import { DemoBanner } from "@/components/terminal/DemoBanner";
+import { ConnectionStatusIndicator } from "@/components/ui/ConnectionStatus";
+import { useMarketData } from "@/hooks/useMarketData";
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
+  // Initialize live market data connection
+  const { connectionStatus, isLiveEnabled } = useMarketData();
+
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: "transparent" }}>
       <DemoBanner />
@@ -29,6 +34,9 @@ export default function TerminalLayout({ children }: { children: React.ReactNode
       <ChatDrawer />
       <KeyboardShortcuts />
       </div>
+
+      {/* Connection status indicator */}
+      {isLiveEnabled && <ConnectionStatusIndicator />}
     </div>
   );
 }

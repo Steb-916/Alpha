@@ -5,8 +5,9 @@ import { DataCell } from "@/components/ui/DataCell";
 import { Badge } from "@/components/ui/Badge";
 import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_INSTRUMENTS, generateBasisData, generateFundingData } from "@/lib/mockData";
+import { MOCK_INSTRUMENTS, generateBasisData } from "@/lib/mockData";
 import { formatPercent, formatFundingRate, cn, getChangeColor } from "@/lib/utils";
+import { useLiveFundingData } from "@/hooks/useLiveTerminalData";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   if (!data.length) return null;
@@ -72,7 +73,7 @@ export default function BasisPage() {
   const hydrated = useHydrated();
 
   const basisData = useMemo(() => generateBasisData(selectedAsset), [selectedAsset]);
-  const fundingData = useMemo(() => generateFundingData(selectedAsset), [selectedAsset]);
+  const fundingData = useLiveFundingData();
 
   const basisHistory = useMemo(() => basisData.history.map((h) => h.basis), [basisData]);
   const fundingHistory = useMemo(() => fundingData.history.map((h) => h.rate * 100), [fundingData]);

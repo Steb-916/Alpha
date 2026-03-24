@@ -5,8 +5,9 @@ import { DataCell } from "@/components/ui/DataCell";
 import { Badge } from "@/components/ui/Badge";
 import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_INSTRUMENTS, generateFundingData } from "@/lib/mockData";
+import { MOCK_INSTRUMENTS } from "@/lib/mockData";
 import { formatFundingRate, formatPercent, cn, getChangeColor } from "@/lib/utils";
+import { useLiveFundingData } from "@/hooks/useLiveTerminalData";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   const min = Math.min(...data);
@@ -54,9 +55,20 @@ export default function FundingPage() {
   const hydrated = useHydrated();
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
+  // Live funding data for selected asset
+  const liveFunding = useLiveFundingData();
+
   const allFunding = useMemo(
-    () => MOCK_INSTRUMENTS.map((inst) => ({ ...inst, funding: generateFundingData(inst.symbol) })),
-    []
+    () => MOCK_INSTRUMENTS.map((inst) => ({
+      ...inst,
+      funding: inst.symbol === selectedAsset ? liveFunding : (() => {
+        // For non-selected assets, use the live hook won't work (hooks can't be conditional)
+        // So we import mock data but override the selected one
+        const { generateFundingData } = require("@/lib/mockData");
+        return generateFundingData(inst.symbol);
+      })(),
+    })),
+    [liveFunding, selectedAsset]
   );
 
   const selectedFunding = useMemo(

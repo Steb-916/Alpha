@@ -5,8 +5,10 @@ import { DataCell } from "@/components/ui/DataCell";
 import { Badge } from "@/components/ui/Badge";
 import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_INSTRUMENTS, generateOIData } from "@/lib/mockData";
+import { MOCK_INSTRUMENTS } from "@/lib/mockData";
+import { generateOIData } from "@/lib/mockData";
 import { formatLargeNumber, formatPercent, cn, getChangeColor } from "@/lib/utils";
+import { useLiveOIData } from "@/hooks/useLiveTerminalData";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   const min = Math.min(...data);
@@ -77,7 +79,7 @@ export default function OpenInterestPage() {
   const { selectedAsset } = useAppStore();
   const hydrated = useHydrated();
 
-  const oiData = useMemo(() => generateOIData(selectedAsset), [selectedAsset]);
+  const oiData = useLiveOIData();
   const instrument = useMemo(
     () => MOCK_INSTRUMENTS.find((i) => i.symbol === selectedAsset) ?? MOCK_INSTRUMENTS[0],
     [selectedAsset]

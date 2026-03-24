@@ -4,7 +4,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Badge } from "@/components/ui/Badge";
 import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
-import { generateScreenerData } from "@/lib/mockData";
+import { useLiveScreenerData } from "@/hooks/useLiveTerminalData";
 import {
   formatPrice,
   formatLargeNumber,
@@ -54,7 +54,7 @@ export default function ScreenerPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
-  const rawData = useMemo(() => generateScreenerData(), []);
+  const rawData = useLiveScreenerData();
 
   const sortedData = useMemo(() => {
     return [...rawData].sort((a, b) => {

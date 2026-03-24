@@ -7,6 +7,7 @@ import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_INSTRUMENTS, generateLiquidationData } from "@/lib/mockData";
 import { formatLargeNumber, formatPrice, formatPercent, cn } from "@/lib/utils";
+import { useMarketDataStore } from "@/lib/marketDataStore";
 
 function LiqBarChart({ data, height = 140 }: { data: { time: number; longVol: number; shortVol: number }[]; height?: number }) {
   const maxVol = Math.max(...data.map((d) => d.longVol + d.shortVol), 1);
@@ -61,7 +62,29 @@ export default function LiquidationsPage() {
   const { selectedAsset } = useAppStore();
   const hydrated = useHydrated();
 
-  const liqData = useMemo(() => generateLiquidationData(selectedAsset), [selectedAsset]);
+  // Use live liquidation data if available, otherwise mock
+  const liveLiqs = useMarketDataStore((s) => s.liquidations);
+  const liqData = useMemo(() => {
+    const mock = generateLiquidationData(selectedAsset);
+    // Merge live liquidations into mock data if they exist
+    if (liveLiqs.length > 0) {
+      const assetLiqs = liveLiqs.filter(l =>
+        l.symbol.replace('USDT', '') === selectedAsset || l.symbol === selectedAsset + 'USDT'
+      );
+      if (assetLiqs.length > 0) {
+        const liveEvents = assetLiqs.map(l => ({
+          time: new Date(l.timestamp).toISOString(),
+          symbol: selectedAsset,
+          exchange: l.exchange.charAt(0).toUpperCase() + l.exchange.slice(1),
+          side: l.side,
+          amount: l.price * l.quantity,
+          price: l.price,
+        }));
+        mock.events = [...liveEvents, ...mock.events].slice(0, 50);
+      }
+    }
+    return mock;
+  }, [selectedAsset, liveLiqs]);
   const totalLiq = liqData.totalLong24h + liqData.totalShort24h;
   const liqRatio = liqData.totalShort24h > 0 ? liqData.totalLong24h / liqData.totalShort24h : 0;
   const longPct = totalLiq > 0 ? (liqData.totalLong24h / totalLiq) * 100 : 50;

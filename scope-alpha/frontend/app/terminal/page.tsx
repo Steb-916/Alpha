@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useCallback } from "react";
+import { useRef, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PriceChart, type PriceChartRef } from "@/components/charts/PriceChart";
 import { useAnnotationRenderer } from "@/components/charts/AnnotationOverlay";
@@ -16,8 +16,9 @@ import { useAppStore } from "@/lib/store";
 import { useAnnotationStore } from "@/lib/annotationStore";
 import { useSignalStore } from "@/lib/signalStore";
 import { useHydrated } from "@/lib/useHydrated";
-import { MOCK_INSTRUMENTS, generateCandles, generateFundingData, generateOIData, generateHealthScore } from "@/lib/mockData";
+import { MOCK_INSTRUMENTS } from "@/lib/mockData";
 import { formatFundingRate, formatLargeNumber, formatPercent } from "@/lib/utils";
+import { useLiveCandles, useLiveFundingData, useLiveOIData, useLiveHealthScore, useLiveTickers } from "@/hooks/useLiveTerminalData";
 import type { Annotation } from "@/lib/annotations";
 
 // Mock analyst layers for demo
@@ -36,16 +37,28 @@ export default function TerminalDashboard() {
 
   const isAnalyst = session?.user?.role === "analyst";
 
-  const candles = useMemo(() => {
-    const instrument = MOCK_INSTRUMENTS.find(i => i.symbol === selectedAsset);
-    const basePrice = instrument?.price || 67000;
-    const count = selectedTimeframe === "1D" ? 90 : selectedTimeframe === "4H" ? 180 : 360;
-    return generateCandles(basePrice, count);
-  }, [selectedAsset, selectedTimeframe]);
+  // Live market data with automatic fallback to mock
+  const { data: candles, isLoading: chartLoading } = useLiveCandles();
+  const funding = useLiveFundingData();
+  const oi = useLiveOIData();
+  const health = useLiveHealthScore();
+  const liveTickers = useLiveTickers();
 
-  const funding = useMemo(() => generateFundingData(selectedAsset), [selectedAsset]);
-  const oi = useMemo(() => generateOIData(selectedAsset), [selectedAsset]);
-  const health = useMemo(() => generateHealthScore(selectedAsset), [selectedAsset]);
+  // Enrich watchlist data with live prices
+  const watchlistData = useMemo(() => {
+    return MOCK_INSTRUMENTS.map((inst) => {
+      const ticker = liveTickers[inst.symbol + 'USDT'];
+      if (ticker) {
+        return {
+          ...inst,
+          price: ticker.lastPrice,
+          change24h: ticker.priceChangePercent24h,
+          volume24h: ticker.volume24h,
+        };
+      }
+      return inst;
+    });
+  }, [liveTickers]);
 
   const handleAnnotationCreated = useCallback(
     (annotationData: Omit<Annotation, "id" | "createdAt" | "updatedAt" | "expiresAt">) => {
@@ -152,7 +165,7 @@ export default function TerminalDashboard() {
         {/* Chart */}
         <GlassCard noPadding className="flex-[2] min-h-0 overflow-hidden">
           <div className="h-full relative pt-2" ref={chartContainerRef}>
-            <PriceChart ref={chartRef} data={candles} />
+            <PriceChart ref={chartRef} data={candles} loading={chartLoading} />
           </div>
         </GlassCard>
 
@@ -177,7 +190,7 @@ export default function TerminalDashboard() {
 
           {/* Watchlist */}
           <GlassCard noPadding className="flex-1 min-h-0 overflow-hidden">
-            <Watchlist data={MOCK_INSTRUMENTS} />
+            <Watchlist data={watchlistData} />
           </GlassCard>
         </div>
       </div>
