@@ -138,10 +138,10 @@ export class OKXConnector implements ExchangeConnector {
   }
 
   // WebSocket stubs — Phase 1 stretch
-  subscribeKline(): () => void { return () => {}; }
-  subscribeMarkPrice(): () => void { return () => {}; }
-  subscribeLiquidation(): () => void { return () => {}; }
-  subscribeAllTickers(): () => void { return () => {}; }
+  subscribeKline(_s?: string, _i?: string, _cb?: (d: OHLCV) => void): () => void { return () => {}; }
+  subscribeMarkPrice(_s?: string, _cb?: (d: MarkPrice) => void): () => void { return () => {}; }
+  subscribeLiquidation(_s?: string, _cb?: (d: Liquidation) => void): () => void { return () => {}; }
+  subscribeAllTickers(_cb?: (d: Ticker[]) => void): () => void { return () => {}; }
 
   async connect(): Promise<void> { this._connected = true; }
   disconnect(): void { this._connected = false; }

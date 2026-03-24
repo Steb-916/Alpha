@@ -240,6 +240,10 @@ class WebSocketManager {
     return this.sseClients.size;
   }
 
+  getSSEClients(): IterableIterator<SSEClient> {
+    return this.sseClients.values();
+  }
+
   // ── Connection Management ──
 
   async initialize(): Promise<void> {

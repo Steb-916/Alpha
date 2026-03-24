@@ -104,7 +104,8 @@ interface BinanceTicker24hr {
 
 export class BinanceConnector implements ExchangeConnector {
   name = 'binance';
-  private wsConnections: Map<string, WebSocket> = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private wsConnections: Map<string, any> = new Map();
   private _connected = false;
 
   // ── REST Methods ──
@@ -356,7 +357,7 @@ export class BinanceConnector implements ExchangeConnector {
     // For direct use, create a WS connection:
     const wsUrl = `${WS_BASE}/ws/${stream}`;
 
-    let ws: WebSocket | null = null;
+    let ws: any = null;
     let closed = false;
 
     const connect = () => {

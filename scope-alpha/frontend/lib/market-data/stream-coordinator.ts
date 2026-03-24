@@ -47,7 +47,7 @@ class StreamCoordinator {
       // Start heartbeat for SSE clients
       this.heartbeatInterval = setInterval(() => {
         const manager = getWSManager();
-        for (const client of Array.from(this._getClients())) {
+        for (const client of this._getClients()) {
           try {
             client.send('heartbeat', { timestamp: Date.now() });
           } catch { /* client disconnected */ }
@@ -218,11 +218,9 @@ class StreamCoordinator {
     }
   }
 
-  private *_getClients(): Generator<SSEClient> {
-    // Access clients through WSManager — we expose via the registered clients
+  private _getClients(): SSEClient[] {
     const manager = getWSManager();
-    // The manager handles client iteration internally via _notifySSEClients
-    // This is only for heartbeat; we use a different approach
+    return Array.from(manager.getSSEClients());
   }
 }
 
