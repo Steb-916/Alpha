@@ -104,7 +104,6 @@ interface BinanceTicker24hr {
 
 export class BinanceConnector implements ExchangeConnector {
   name = 'binance';
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private wsConnections: Map<string, any> = new Map();
   private _connected = false;
 
