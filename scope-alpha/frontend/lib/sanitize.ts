@@ -28,7 +28,7 @@ function getPurify(): Purify | null {
     // resolving `isomorphic-dompurify` at build time. The lookup happens
     // only at runtime; if the package isn't installed, this throws and we
     // fall through to the regex-strip fallback.
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+    // eslint-disable-next-line no-eval
     const req = eval('require') as NodeJS.Require;
     const mod = req('isomorphic-dompurify');
     _purify = (mod && (mod.default || mod)) as Purify;

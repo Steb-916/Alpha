@@ -22,19 +22,27 @@ export interface RouteErrorContext {
 // `eval("require")` prevents the Next.js bundler from trying to resolve the
 // module at build time — the lookup only happens at runtime, and any
 // failure falls through to the silent no-op branch.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _sentry: any = null;
+type SentryModule = {
+  withScope: (fn: (scope: SentryScope) => void) => void;
+  captureException: (err: unknown) => void;
+};
+interface SentryScope {
+  setTag: (k: string, v: string) => void;
+  setUser: (u: { id: string }) => void;
+  setContext: (k: string, v: Record<string, unknown>) => void;
+}
+
+let _sentry: SentryModule | null = null;
 let _sentryInitTried = false;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getSentry(): any {
+function getSentry(): SentryModule | null {
   if (_sentryInitTried) return _sentry;
   _sentryInitTried = true;
   if (!process.env.SENTRY_DSN) return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+    // eslint-disable-next-line no-eval
     const req = eval('require') as NodeJS.Require;
-    _sentry = req('@sentry/nextjs');
+    _sentry = req('@sentry/nextjs') as SentryModule;
   } catch {
     _sentry = null;
   }
