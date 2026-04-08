@@ -6,9 +6,6 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['ws'],
-    // Phase 7: instrumentation hook is on by default in 14.2+, but enabling
-    // it explicitly is safe and self-documenting.
-    instrumentationHook: true,
   },
 };
 

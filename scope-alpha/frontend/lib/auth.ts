@@ -3,6 +3,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 import { prisma } from "./prisma";
 import "./auth-types";
 
@@ -270,10 +271,7 @@ export const authOptions: NextAuthOptions = {
         // be revoked later. Best-effort — failure here must NOT block sign-in
         // (demo mode, DB hiccups).
         try {
-          const jti =
-            globalThis.crypto && "randomUUID" in globalThis.crypto
-              ? globalThis.crypto.randomUUID()
-              : `jti_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          const jti = randomUUID();
           await prisma.userSession.create({
             data: {
               userId: dbUser?.id ?? user.id,

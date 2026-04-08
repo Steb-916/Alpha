@@ -17,16 +17,24 @@ export interface RouteErrorContext {
   params?: Record<string, unknown>;
 }
 
-let _sentry: typeof import('@sentry/nextjs') | null = null;
+// We intentionally avoid a static import of @sentry/nextjs so builds don't
+// fail when the package isn't installed (inert-mode is a supported state).
+// `eval("require")` prevents the Next.js bundler from trying to resolve the
+// module at build time — the lookup only happens at runtime, and any
+// failure falls through to the silent no-op branch.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sentry: any = null;
 let _sentryInitTried = false;
 
-function getSentry(): typeof import('@sentry/nextjs') | null {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getSentry(): any {
   if (_sentryInitTried) return _sentry;
   _sentryInitTried = true;
   if (!process.env.SENTRY_DSN) return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    _sentry = require('@sentry/nextjs');
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-eval
+    const req = eval('require') as NodeJS.Require;
+    _sentry = req('@sentry/nextjs');
   } catch {
     _sentry = null;
   }
