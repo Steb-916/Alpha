@@ -38,7 +38,8 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
     }));
 
     useEffect(() => {
-      if (!containerRef.current) return;
+      const container = containerRef.current;
+      if (!container) return;
 
       const isDark = document.documentElement.getAttribute("data-theme") === "dark";
       const gridColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)";
@@ -70,8 +71,8 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
           timeVisible: true,
           secondsVisible: false,
         },
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
+        width: container.clientWidth || 800,
+        height: container.clientHeight || 400,
       });
 
       const candleSeries = chart.addCandlestickSeries({
@@ -96,14 +97,20 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
       candleSeriesRef.current = candleSeries;
       volumeSeriesRef.current = volumeSeries;
 
-      const handleResize = () => {
-        if (containerRef.current) {
-          chart.applyOptions({
-            width: containerRef.current.clientWidth,
-            height: containerRef.current.clientHeight,
-          });
+      // ResizeObserver handles both the initial layout pass (when the parent
+      // flex/grid may not yet have computed real dimensions) and any
+      // subsequent parent-driven resize (window resize, sibling panels
+      // opening/closing). This replaces the old window.resize listener which
+      // missed layout-only changes.
+      const resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          chart.applyOptions({ width, height });
         }
-      };
+      });
+      resizeObserver.observe(container);
 
       const observer = new MutationObserver(() => {
         const nowDark = document.documentElement.getAttribute("data-theme") === "dark";
@@ -121,9 +128,8 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
       });
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-      window.addEventListener("resize", handleResize);
       return () => {
-        window.removeEventListener("resize", handleResize);
+        resizeObserver.disconnect();
         observer.disconnect();
         chart.remove();
         chartRef.current = null;
@@ -154,24 +160,38 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
       chartRef.current?.timeScale().fitContent();
     }, [data]);
 
-    if (loading) {
-      return (
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 rounded-full" style={{ borderColor: "var(--glass-border)", borderTopColor: "var(--accent-green)", animation: "spin 1s linear infinite" }} />
-            <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>Loading {selectedAsset} chart...</span>
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="relative w-full h-full">
         <div className="absolute top-2 left-3 z-10 flex items-center gap-2">
           <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{selectedAsset}/USDT</span>
           <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{selectedTimeframe}</span>
         </div>
+        {/* Container is rendered unconditionally so the setup effect can
+            always bind to a real DOM node. Without this, first-load hit a
+            conditional-render-vs-effect race where the spinner branch
+            returned early and the chart container never mounted before
+            the effect ran. */}
         <div ref={containerRef} className="w-full h-full" />
+        {loading && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ background: "rgba(10, 14, 20, 0.4)" }}
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div
+                className="w-8 h-8 border-2 rounded-full"
+                style={{
+                  borderColor: "var(--glass-border)",
+                  borderTopColor: "var(--accent-green)",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                Loading {selectedAsset} chart...
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
