@@ -81,6 +81,8 @@ export function FeedItem({ item }: { item: FeedItemData }) {
       const asset = String(m.asset ?? "—");
       const direction = String(m.direction ?? "long");
       const isLong = direction === "long";
+      const conviction = m.conviction != null ? String(m.conviction) : "";
+      const timeframe = m.timeframe != null ? String(m.timeframe) : "";
       return (
         <GlassCard>
           <ActorLine actor={item.actor} when={item.createdAt} />
@@ -97,8 +99,8 @@ export function FeedItem({ item }: { item: FeedItemData }) {
             </span>{" "}
             signal on{" "}
             <span style={{ color: "var(--text-primary)" }}>{asset}</span>
-            {item.isFullAccess && m.conviction
-              ? ` (${m.conviction} conviction, ${m.timeframe})`
+            {item.isFullAccess && conviction
+              ? ` (${conviction} conviction, ${timeframe})`
               : ""}
           </p>
           {item.signalId && (
@@ -185,6 +187,7 @@ export function FeedItem({ item }: { item: FeedItemData }) {
 
     case "announcement": {
       const title = String(m.title ?? "Announcement");
+      const preview = m.preview != null ? String(m.preview) : "";
       return (
         <GlassCard>
           <ActorLine actor={item.actor} when={item.createdAt} />
@@ -200,12 +203,12 @@ export function FeedItem({ item }: { item: FeedItemData }) {
           >
             {title}
           </p>
-          {item.isFullAccess && m.preview && (
+          {item.isFullAccess && preview && (
             <p
               className="text-[10px] font-body mt-1 line-clamp-2"
               style={{ color: "var(--text-muted)" }}
             >
-              {String(m.preview)}
+              {preview}
             </p>
           )}
           <Link
