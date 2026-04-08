@@ -19,6 +19,8 @@ import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_INSTRUMENTS } from "@/lib/mockData";
 import { formatFundingRate, formatLargeNumber, formatPercent } from "@/lib/utils";
 import { useLiveCandles, useLiveFundingData, useLiveOIData, useLiveHealthScore, useLiveTickers } from "@/hooks/useLiveTerminalData";
+import { SignalCreationOverlay } from "@/components/charts/SignalCreationOverlay";
+import { DraftSignalList } from "@/components/signals/DraftSignalList";
 import type { Annotation } from "@/lib/annotations";
 
 // Mock analyst layers for demo
@@ -166,6 +168,8 @@ export default function TerminalDashboard() {
         <GlassCard noPadding className="flex-[2] min-h-0 overflow-hidden">
           <div className="h-full relative pt-2" ref={chartContainerRef}>
             <PriceChart ref={chartRef} data={candles} loading={chartLoading} />
+            {/* Phase 4: chart-click signal creation overlay (only renders while in chart mode) */}
+            {isAnalyst && <SignalCreationOverlay chartRef={chartRef} />}
           </div>
         </GlassCard>
 
@@ -182,6 +186,9 @@ export default function TerminalDashboard() {
               <SignalsPanel />
             </GlassCard>
           )}
+
+          {/* Phase 4: Drafts panel (analysts only). Renders nothing when empty. */}
+          {isAnalyst && <DraftSignalList />}
 
           {/* Layers Panel */}
           <GlassCard noPadding className="shrink-0">

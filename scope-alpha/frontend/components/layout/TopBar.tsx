@@ -150,6 +150,22 @@ export function TopBar() {
                   {session.user.displayName || session.user.name || session.user.email}
                 </div>
                 <Link
+                  href="/portfolio"
+                  onClick={() => setShowUserMenu(false)}
+                  className="block px-3 py-2 text-sm font-body cursor-pointer"
+                  style={{ color: "var(--text-secondary)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "var(--glass-bg)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }}
+                >
+                  Portfolio
+                </Link>
+                <Link
                   href="/profile"
                   onClick={() => setShowUserMenu(false)}
                   className="block px-3 py-2 text-sm font-body cursor-pointer"

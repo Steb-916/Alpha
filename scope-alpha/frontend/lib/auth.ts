@@ -258,10 +258,39 @@ export const authOptions: NextAuthOptions = {
           token.role = dbUser.role;
           token.slug = dbUser.slug;
           token.displayName = dbUser.displayName;
+          token.tosAcceptedAt = dbUser.tosAcceptedAt
+            ? dbUser.tosAcceptedAt.toISOString()
+            : null;
+          token.analystAgreementAcceptedAt = dbUser.analystAgreementAcceptedAt
+            ? dbUser.analystAgreementAcceptedAt.toISOString()
+            : null;
+        }
+
+        // Phase 7: create a UserSession row + embed jti so the session can
+        // be revoked later. Best-effort — failure here must NOT block sign-in
+        // (demo mode, DB hiccups).
+        try {
+          const jti =
+            globalThis.crypto && "randomUUID" in globalThis.crypto
+              ? globalThis.crypto.randomUUID()
+              : `jti_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+          await prisma.userSession.create({
+            data: {
+              userId: dbUser?.id ?? user.id,
+              token: jti,
+              expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            },
+          });
+          token.jti = jti;
+        } catch (err) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[auth] UserSession create failed (best-effort):", err);
+          }
         }
       }
 
-      // When session is updated (e.g., after role change), refresh from DB
+      // When session is updated (e.g., after role change or accepting ToS),
+      // refresh the gating fields from DB.
       if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id },
@@ -270,17 +299,57 @@ export const authOptions: NextAuthOptions = {
           token.role = dbUser.role;
           token.slug = dbUser.slug;
           token.displayName = dbUser.displayName;
+          token.tosAcceptedAt = dbUser.tosAcceptedAt
+            ? dbUser.tosAcceptedAt.toISOString()
+            : null;
+          token.analystAgreementAcceptedAt = dbUser.analystAgreementAcceptedAt
+            ? dbUser.analystAgreementAcceptedAt.toISOString()
+            : null;
         }
       }
 
       return token;
     },
     async session({ session, token }) {
+      // Phase 7: best-effort session revocation check.
+      // - missing UserSession row → pass through (legacy JWTs, demo flow)
+      // - row exists with revokedAt set → throw to invalidate the JWT
+      if (token.jti) {
+        try {
+          const userSession = await prisma.userSession.findUnique({
+            where: { token: token.jti },
+            select: { revokedAt: true },
+          });
+          if (userSession && userSession.revokedAt) {
+            throw new Error("Session revoked");
+          }
+          if (userSession) {
+            // Fire-and-forget lastActive bump.
+            prisma.userSession
+              .update({
+                where: { token: token.jti },
+                data: { lastActive: new Date() },
+              })
+              .catch(() => {
+                /* best-effort */
+              });
+          }
+        } catch (err) {
+          if ((err as Error).message === "Session revoked") throw err;
+          // Any other DB error → silently pass through, don't lock real users out
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[auth] UserSession lookup failed (best-effort):", err);
+          }
+        }
+      }
+
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
         session.user.slug = token.slug;
         session.user.displayName = token.displayName;
+        session.user.tosAcceptedAt = token.tosAcceptedAt;
+        session.user.analystAgreementAcceptedAt = token.analystAgreementAcceptedAt;
       }
       return session;
     },

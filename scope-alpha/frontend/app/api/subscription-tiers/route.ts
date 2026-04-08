@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { sanitizeText, sanitizeRichText } from "@/lib/sanitize";
+import { captureRouteError } from "@/lib/sentry";
 
 // GET /api/subscription-tiers?analystId=... — list tiers for an analyst
 export async function GET(request: Request) {
@@ -34,6 +37,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const limited = await ensureRateLimit("default", request, session.user.id);
+  if (limited) return limited;
+
   try {
     const body = await request.json();
     const { name, description, priceUsd, features } = body;
@@ -60,8 +66,8 @@ export async function POST(request: Request) {
     const tier = await prisma.subscriptionTier.create({
       data: {
         analystId: session.user.id,
-        name,
-        description: description || null,
+        name: sanitizeText(name),
+        description: description ? sanitizeRichText(description) : null,
         priceUsd: Math.round(priceUsd * 100), // store in cents
         features: features || [],
         sortOrder: existingCount,
@@ -70,7 +76,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(tier, { status: 201 });
   } catch (error) {
-    console.error("Create tier error:", error);
+    captureRouteError(error, { route: "/api/subscription-tiers POST", userId: session.user.id });
     return NextResponse.json(
       { error: "Failed to create tier" },
       { status: 500 }

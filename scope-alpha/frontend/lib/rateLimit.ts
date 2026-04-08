@@ -1,76 +1,95 @@
-// Simple in-memory rate limiter for API routes
-// In production, use Redis-based rate limiting
+/**
+ * Phase 7 rate limiter.
+ *
+ * Upstash-backed (with in-memory fallback) sliding-window counter keyed by
+ * route + identifier. Identifier is the authenticated user ID when present,
+ * otherwise the client IP from x-forwarded-for.
+ *
+ * Usage in a route handler:
+ *
+ *   const limited = await ensureRateLimit('signals/create', request, session?.user?.id);
+ *   if (limited) return limited;
+ *
+ * `ensureRateLimit` returns a 429 `Response` when the limit is exceeded,
+ * otherwise null. Headers `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and
+ * `Retry-After` are attached to the 429 response.
+ *
+ * Failures of the underlying Redis call fail OPEN — Redis outages must not
+ * lock real users out.
+ */
 
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+import { incrementWithExpiry } from '@/lib/cache/redis';
+import { RATE_LIMITS, type RateLimitKey } from '@/config/rateLimits';
 
-const store = new Map<string, RateLimitEntry>();
-
-// Clean up expired entries periodically
-setInterval(() => {
-  const now = Date.now();
-  store.forEach((entry, key) => {
-    if (entry.resetAt < now) store.delete(key);
-  });
-}, 60000);
-
-interface RateLimitConfig {
-  windowMs?: number; // time window in ms (default: 60s)
-  maxRequests?: number; // max requests per window (default: 60)
-}
-
-interface RateLimitResult {
+export interface RateLimitResult {
   allowed: boolean;
   remaining: number;
-  resetAt: number;
+  resetAt: number; // unix seconds
 }
 
-export function checkRateLimit(
-  key: string,
-  config: RateLimitConfig = {}
-): RateLimitResult {
-  const { windowMs = 60000, maxRequests = 60 } = config;
-  const now = Date.now();
-  const entry = store.get(key);
+/** Best-effort client IP from forwarding headers. */
+export function getClientIp(request: Request): string {
+  const fwd = request.headers.get('x-forwarded-for');
+  if (fwd) return fwd.split(',')[0]!.trim();
+  const real = request.headers.get('x-real-ip');
+  if (real) return real.trim();
+  return 'unknown';
+}
 
-  if (!entry || entry.resetAt < now) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: maxRequests - 1, resetAt: now + windowMs };
-  }
+/** Lower-level: check the limit. Used by `ensureRateLimit`. */
+export async function checkRateLimit(
+  key: RateLimitKey | string,
+  identifier: string,
+): Promise<RateLimitResult> {
+  const config =
+    (RATE_LIMITS as Record<string, { window: number; max: number }>)[key] ??
+    RATE_LIMITS.default;
+  const redisKey = `ratelimit:${key}:${identifier}`;
 
-  entry.count++;
-
-  if (entry.count > maxRequests) {
-    return { allowed: false, remaining: 0, resetAt: entry.resetAt };
-  }
+  const { count, ttl } = await incrementWithExpiry(redisKey, config.window);
 
   return {
-    allowed: true,
-    remaining: maxRequests - entry.count,
-    resetAt: entry.resetAt,
+    allowed: count <= config.max,
+    remaining: Math.max(0, config.max - count),
+    resetAt: Math.floor(Date.now() / 1000) + ttl,
   };
 }
 
-// Helper to get client IP from request headers
-export function getClientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return "unknown";
-}
-
-// Rate limit response helper
-export function rateLimitResponse(resetAt: number) {
-  const retryAfter = Math.ceil((resetAt - Date.now()) / 1000);
+/**
+ * Build a 429 Response from a RateLimitResult. The headers expose the
+ * standard rate-limit fields plus a Retry-After hint.
+ */
+export function rateLimitResponse(result: RateLimitResult): Response {
+  const retryAfter = Math.max(0, result.resetAt - Math.floor(Date.now() / 1000));
   return new Response(
-    JSON.stringify({ error: "Too many requests", retryAfter }),
+    JSON.stringify({ error: 'Too many requests', retryAfter }),
     {
       status: 429,
       headers: {
-        "Content-Type": "application/json",
-        "Retry-After": String(retryAfter),
+        'Content-Type': 'application/json',
+        'X-RateLimit-Remaining': String(result.remaining),
+        'X-RateLimit-Reset': String(result.resetAt),
+        'Retry-After': String(retryAfter),
       },
-    }
+    },
   );
+}
+
+/**
+ * One-shot guard for route handlers. Returns a 429 response if the limit
+ * was exceeded, otherwise null. Drop two lines into a route immediately
+ * after the auth check:
+ *
+ *   const limited = await ensureRateLimit('signals/create', request, session?.user?.id);
+ *   if (limited) return limited;
+ */
+export async function ensureRateLimit(
+  key: RateLimitKey | string,
+  request: Request,
+  userId?: string | null,
+): Promise<Response | null> {
+  const identifier = userId && userId.length > 0 ? userId : getClientIp(request);
+  const result = await checkRateLimit(key, identifier);
+  if (result.allowed) return null;
+  return rateLimitResponse(result);
 }

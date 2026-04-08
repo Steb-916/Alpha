@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { sanitizeText } from "@/lib/sanitize";
+import { captureRouteError } from "@/lib/sentry";
 
 function generateSlug(name: string): string {
   return name
@@ -14,8 +17,13 @@ function generateSlug(name: string): string {
 
 export async function POST(request: Request) {
   try {
+    const limited = await ensureRateLimit("auth/signup", request);
+    if (limited) return limited;
+
     const body = await request.json();
-    const { email, password, displayName } = body;
+    const email = typeof body.email === "string" ? body.email : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const displayName = sanitizeText(body.displayName);
 
     // Validate input
     if (!email || !password || !displayName) {
@@ -84,7 +92,7 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Signup error:", error);
+    captureRouteError(error, { route: "/api/auth/signup" });
     return NextResponse.json(
       { error: "An error occurred during signup" },
       { status: 500 }

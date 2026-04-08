@@ -7,7 +7,7 @@ import { useAppStore } from "@/lib/store";
 import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_INSTRUMENTS, generateBasisData } from "@/lib/mockData";
 import { formatPercent, formatFundingRate, cn, getChangeColor } from "@/lib/utils";
-import { useLiveFundingData } from "@/hooks/useLiveTerminalData";
+import { useLiveFundingData, useLiveBasisData } from "@/hooks/useLiveTerminalData";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   if (!data.length) return null;
@@ -72,7 +72,7 @@ export default function BasisPage() {
   const { selectedAsset } = useAppStore();
   const hydrated = useHydrated();
 
-  const basisData = useMemo(() => generateBasisData(selectedAsset), [selectedAsset]);
+  const basisData = useLiveBasisData();
   const fundingData = useLiveFundingData();
 
   const basisHistory = useMemo(() => basisData.history.map((h) => h.basis), [basisData]);

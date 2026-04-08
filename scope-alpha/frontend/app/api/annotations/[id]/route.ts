@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { captureRouteError } from "@/lib/sentry";
 
 // PATCH /api/annotations/[id] — update annotation
 export async function PATCH(
@@ -12,6 +14,9 @@ export async function PATCH(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await ensureRateLimit("default", request, session.user.id);
+  if (limited) return limited;
 
   const annotation = await prisma.annotation.findUnique({
     where: { id: params.id },
@@ -41,7 +46,7 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error("Update annotation error:", error);
+    captureRouteError(error, { route: "/api/annotations/[id] PATCH", userId: session.user.id });
     return NextResponse.json(
       { error: "Failed to update annotation" },
       { status: 500 }
@@ -58,6 +63,9 @@ export async function DELETE(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await ensureRateLimit("default", request, session.user.id);
+  if (limited) return limited;
 
   const annotation = await prisma.annotation.findUnique({
     where: { id: params.id },

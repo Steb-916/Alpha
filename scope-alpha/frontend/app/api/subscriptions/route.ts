@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { captureRouteError } from "@/lib/sentry";
 
 // GET /api/subscriptions — list user's active subscriptions
 export async function GET() {
@@ -38,6 +40,9 @@ export async function POST(request: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await ensureRateLimit("subscriptions/checkout", request, session.user.id);
+  if (limited) return limited;
 
   try {
     const body = await request.json();
@@ -115,9 +120,22 @@ export async function POST(request: Request) {
           },
         });
 
+    // Phase 6: subscribing implies following. Idempotent — if a Follow row
+    // already exists (P2002), silently ignore.
+    try {
+      await prisma.follow.create({
+        data: {
+          followerId: session.user.id,
+          analystId: tier.analystId,
+        },
+      });
+    } catch {
+      /* already following — fine */
+    }
+
     return NextResponse.json(subscription, { status: 201 });
   } catch (error) {
-    console.error("Create subscription error:", error);
+    captureRouteError(error, { route: "/api/subscriptions POST", userId: session.user.id });
     return NextResponse.json(
       { error: "Failed to create subscription" },
       { status: 500 }

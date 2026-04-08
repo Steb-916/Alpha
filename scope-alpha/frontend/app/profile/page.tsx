@@ -8,6 +8,7 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { Badge } from "@/components/ui/Badge";
 import { BecomeAnalystForm } from "@/components/auth/BecomeAnalystForm";
 import { MeshBackground } from "@/components/layout/MeshBackground";
+import Link from "next/link";
 
 interface UserProfile {
   id: string;
@@ -317,6 +318,59 @@ export default function ProfilePage() {
         {showAnalystForm && (
           <BecomeAnalystForm onSuccess={handleAnalystUpgrade} onCancel={() => setShowAnalystForm(false)} />
         )}
+
+        {/* Phase 7: Security section */}
+        <GlassCard>
+          <h2
+            className="text-base font-bold font-display mb-2"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Security
+          </h2>
+          <p
+            className="text-xs font-body mb-3"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Manage devices and browsers signed into your account.
+          </p>
+          <Link
+            href="/profile/sessions"
+            className="inline-block text-xs font-bold font-body no-underline px-3 py-2 rounded-[var(--radius-sm)]"
+            style={{
+              background: "transparent",
+              color: "var(--accent-green)",
+              border: "1px solid var(--accent-green)",
+            }}
+          >
+            Manage Active Sessions →
+          </Link>
+        </GlassCard>
+
+        {/* Phase 7: Legal section */}
+        <GlassCard>
+          <h2
+            className="text-base font-bold font-display mb-2"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Legal
+          </h2>
+          <div className="flex gap-3 flex-wrap">
+            <Link
+              href="/legal/terms"
+              className="text-xs font-body no-underline"
+              style={{ color: "var(--accent-green)" }}
+            >
+              Terms of Service
+            </Link>
+            <Link
+              href="/legal/privacy"
+              className="text-xs font-body no-underline"
+              style={{ color: "var(--accent-green)" }}
+            >
+              Privacy Policy
+            </Link>
+          </div>
+        </GlassCard>
       </div>
     </div>
   );

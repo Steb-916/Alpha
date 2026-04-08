@@ -5,6 +5,8 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { useAppStore } from "@/lib/store";
 import { useSignalStore } from "@/lib/signalStore";
+import { useSignalCreationStore } from "@/stores/signalCreationStore";
+import { SignalCreationForm } from "@/components/signals/SignalCreationForm";
 import type { Signal, SignalDirection, SignalConviction } from "@/lib/signals";
 
 const TIMEFRAMES = ["1H", "4H", "1D", "1W"];
@@ -15,6 +17,36 @@ const CONVICTIONS: { value: SignalConviction; label: string; color: string }[] =
 ];
 
 export function NewSignalForm() {
+  const useProForm = useSignalCreationStore((s) => s.useProForm);
+  // Phase 4: when the analyst toggles "Pro form", swap in the new
+  // multi-target/draft/template/screenshot form.
+  if (useProForm) {
+    return <NewSignalFormProWrapper />;
+  }
+  return <LegacyNewSignalForm />;
+}
+
+function NewSignalFormProWrapper() {
+  const setUseProForm = useSignalCreationStore((s) => s.setUseProForm);
+  return (
+    <div>
+      <div className="mb-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setUseProForm(false)}
+          className="text-[10px] font-body cursor-pointer"
+          style={{ color: "var(--text-muted)" }}
+        >
+          ← Switch to basic form
+        </button>
+      </div>
+      <SignalCreationForm />
+    </div>
+  );
+}
+
+function LegacyNewSignalForm() {
+  const setUseProForm = useSignalCreationStore((s) => s.setUseProForm);
   const { selectedAsset } = useAppStore();
   const { addSignal, setShowNewSignalForm } = useSignalStore();
 
@@ -99,7 +131,7 @@ export function NewSignalForm() {
 
   return (
     <GlassCard glow="green">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-bold font-display" style={{ color: "var(--text-primary)" }}>
           New Signal — {selectedAsset}
         </h3>
@@ -109,6 +141,16 @@ export function NewSignalForm() {
           style={{ color: "var(--text-muted)" }}
         >
           ✕
+        </button>
+      </div>
+      <div className="mb-3">
+        <button
+          type="button"
+          onClick={() => setUseProForm(true)}
+          className="text-[10px] font-body cursor-pointer"
+          style={{ color: "var(--accent-green)" }}
+        >
+          ⚡ Switch to Pro form (multi-target, drafts, templates)
         </button>
       </div>
 

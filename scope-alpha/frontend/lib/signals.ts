@@ -2,7 +2,30 @@
 
 export type SignalDirection = "long" | "short";
 export type SignalConviction = "low" | "medium" | "high";
-export type SignalStatus = "active" | "target_hit" | "stopped_out" | "expired" | "cancelled";
+// Phase 4: 'draft' and 'resolved' added to support the new DB-backed flow.
+// Legacy 'target_hit' / 'stopped_out' / 'expired' are kept for the existing
+// in-memory signalStore so the demo flow continues to work unchanged.
+export type SignalStatus =
+  | "active"
+  | "target_hit"
+  | "stopped_out"
+  | "expired"
+  | "cancelled"
+  | "draft"
+  | "resolved";
+
+// Phase 4: optional multi-target array. The new DB-backed serializer always
+// populates this (synthesizing a single TP1 from targetPrice for legacy
+// single-target signals); the legacy in-memory signalStore omits it.
+export interface SignalTarget {
+  id: string;
+  label: string;
+  price: number;
+  closePercent: number;
+  hitAt: string | null;
+  hitPrice: number | null;
+  order: number;
+}
 
 export interface Signal {
   id: string;
@@ -21,6 +44,10 @@ export interface Signal {
   resolvedPrice: number | null;
   resultPnlPercent: number | null;
   createdAt: string;
+  // Phase 4 additions (optional for backwards compat)
+  targets?: SignalTarget[];
+  templateId?: string | null;
+  screenshotUrl?: string | null;
 }
 
 export interface CreateSignalInput {
@@ -57,6 +84,10 @@ export function getSignalStatusColor(status: SignalStatus): string {
       return "var(--text-muted)";
     case "cancelled":
       return "var(--text-tertiary)";
+    case "draft":
+      return "var(--text-muted)";
+    case "resolved":
+      return "var(--accent-green)";
   }
 }
 
@@ -72,6 +103,10 @@ export function getSignalStatusLabel(status: SignalStatus): string {
       return "Expired";
     case "cancelled":
       return "Cancelled";
+    case "draft":
+      return "Draft";
+    case "resolved":
+      return "Resolved";
   }
 }
 

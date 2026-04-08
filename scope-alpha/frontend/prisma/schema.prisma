@@ -24,19 +24,36 @@ model User {
   updatedAt     DateTime  @updatedAt
   lastActiveAt  DateTime?
 
-  accounts           Account[]
-  sessions           Session[]
-  analystProfile     AnalystProfile?
-  annotations        Annotation[]
-  signals            Signal[]
-  analystPerformance AnalystPerformance?
-  subscriptionTiers  SubscriptionTier[]
-  subscriptionsAsSubscriber Subscription[] @relation("SubscriberSubscriptions")
-  subscriptionsAsAnalyst    Subscription[] @relation("AnalystSubscriptions")
-  chatMessages       ChatMessage[]
-  announcements      Announcement[]
-  reviewsGiven       Review[] @relation("ReviewAuthor")
-  reviewsReceived    Review[] @relation("ReviewAnalyst")
+  accounts                  Account[]
+  sessions                  Session[]
+  analystProfile            AnalystProfile?
+  annotations               Annotation[]
+  signals                   Signal[]
+  signalTemplates           SignalTemplate[]
+  analystPerformance        AnalystPerformance?
+  subscriptionTiers         SubscriptionTier[]
+  subscriptionsAsSubscriber Subscription[]      @relation("SubscriberSubscriptions")
+  subscriptionsAsAnalyst    Subscription[]      @relation("AnalystSubscriptions")
+  chatMessages              ChatMessage[]
+  announcements             Announcement[]
+  reviewsGiven              Review[]            @relation("ReviewAuthor")
+  reviewsReceived           Review[]            @relation("ReviewAnalyst")
+  // Phase 5
+  trackedSignals            TrackedSignal[]     @relation("SubscriberTrackedSignals")
+  analystTrackedSignals     TrackedSignal[]     @relation("AnalystTrackedSignals")
+  reviewVotes               ReviewVote[]
+  // Phase 6
+  chatReadReceipts          ChatReadReceipt[]
+  chatRoomMembers           ChatRoomMember[]
+  feedEvents                FeedEvent[]
+  following                 Follow[]            @relation("UserFollowing")
+  followers                 Follow[]            @relation("UserFollowers")
+  signalLikes               SignalLike[]
+  signalBookmarks           SignalBookmark[]
+  // Phase 7: Platform Hardening
+  tosAcceptedAt              DateTime?
+  analystAgreementAcceptedAt DateTime?
+  userSessions               UserSession[]
 }
 
 model AnalystProfile {
@@ -83,35 +100,83 @@ model Signal {
   conviction       String    @default("medium")
   notes            String?
   status           String    @default("active")
-  publishedAt      DateTime  @default(now())
+  publishedAt      DateTime? @default(now())
   resolvedAt       DateTime?
   resolvedPrice    Decimal?  @db.Decimal(20, 8)
   resultPnlPercent Decimal?  @db.Decimal(10, 4)
+  templateId       String?
+  screenshotUrl    String?
   createdAt        DateTime  @default(now())
 
-  analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  // Phase 6: denormalized like count for sort/display
+  likeCount Int @default(0)
+
+  analyst   User             @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  targets   SignalTarget[]
+  template  SignalTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  trackedBy TrackedSignal[]
+  likes     SignalLike[]
+  bookmarks SignalBookmark[]
 
   @@index([analystId, status])
   @@index([status])
+  @@index([analystId, status, publishedAt])
+}
+
+model SignalTarget {
+  id           String    @id @default(cuid())
+  signalId     String
+  signal       Signal    @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  label        String
+  price        Decimal   @db.Decimal(20, 8)
+  closePercent Float
+  hitAt        DateTime?
+  hitPrice     Decimal?  @db.Decimal(20, 8)
+  order        Int
+
+  @@index([signalId, order])
+}
+
+model SignalTemplate {
+  id          String   @id @default(cuid())
+  analystId   String
+  analyst     User     @relation(fields: [analystId], references: [id], onDelete: Cascade)
+  name        String
+  asset       String?
+  direction   String?
+  timeframe   String?
+  conviction  String?
+  stopPercent Float?
+  targets     Json?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  signals Signal[]
+
+  @@index([analystId])
 }
 
 model AnalystPerformance {
-  analystId          String   @id
-  totalSignals       Int      @default(0)
-  winCount           Int      @default(0)
-  lossCount          Int      @default(0)
-  winRate            Decimal? @db.Decimal(5, 2)
-  avgPnlPercent      Decimal? @db.Decimal(10, 4)
-  profitFactor       Decimal? @db.Decimal(10, 4)
-  avgRrRatio         Decimal? @db.Decimal(10, 4)
-  bestStreak         Int      @default(0)
-  worstStreak        Int      @default(0)
-  totalPnlPercent    Decimal? @db.Decimal(10, 4)
-  last90dPnlPercent  Decimal? @db.Decimal(10, 4)
-  last90dWinRate     Decimal? @db.Decimal(5, 2)
-  subscriberCount    Int      @default(0)
-  avgRating          Decimal? @db.Decimal(3, 2)
-  updatedAt          DateTime @default(now())
+  analystId          String    @id
+  totalSignals       Int       @default(0)
+  winCount           Int       @default(0)
+  lossCount          Int       @default(0)
+  winRate            Decimal?  @db.Decimal(5, 2)
+  avgPnlPercent      Decimal?  @db.Decimal(10, 4)
+  profitFactor       Decimal?  @db.Decimal(10, 4)
+  avgRrRatio         Decimal?  @db.Decimal(10, 4)
+  bestStreak         Int       @default(0)
+  worstStreak        Int       @default(0)
+  totalPnlPercent    Decimal?  @db.Decimal(10, 4)
+  last90dPnlPercent  Decimal?  @db.Decimal(10, 4)
+  last90dWinRate     Decimal?  @db.Decimal(5, 2)
+  subscriberCount    Int       @default(0)
+  avgRating          Decimal?  @db.Decimal(3, 2)
+  maxDrawdownPct     Float?
+  currentDrawdownPct Float?
+  maxDrawdownDate    DateTime?
+  updatedAt          DateTime  @default(now())
 
   analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
 }
@@ -124,25 +189,83 @@ model Review {
   content            String   @db.Text
   analystResponse    String?  @db.Text
   subscriptionMonths Int      @default(0)
+  // Phase 5
+  helpfulCount       Int      @default(0)
+  unhelpfulCount     Int      @default(0)
+  verifiedSubscriber Boolean  @default(false)
+  subscriptionTier   String?
   createdAt          DateTime @default(now())
-  updatedAt          DateTime  @updatedAt
+  updatedAt          DateTime @updatedAt
 
-  author  User @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  analyst User @relation("ReviewAnalyst", fields: [analystId], references: [id], onDelete: Cascade)
+  author  User         @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  analyst User         @relation("ReviewAnalyst", fields: [analystId], references: [id], onDelete: Cascade)
+  votes   ReviewVote[]
 
   @@unique([authorId, analystId])
   @@index([analystId, createdAt])
+  @@index([analystId, helpfulCount])
+}
+
+// Phase 5: subscriber's personal tracking of an analyst's signal.
+// Stores their own entry/stop/size and personal P&L on close.
+model TrackedSignal {
+  id            String    @id @default(cuid())
+  subscriberId  String
+  signalId      String
+  analystId     String
+  takenAt       DateTime  @default(now())
+  // Subscriber's own execution data — null means use analyst's value.
+  // Decimal(20,8) to match Signal price precision; mixing Float across joins
+  // causes subtle bugs.
+  personalEntry Decimal?  @db.Decimal(20, 8)
+  personalStop  Decimal?  @db.Decimal(20, 8)
+  positionSize  Decimal?  @db.Decimal(20, 8)
+  status        String    @default("active") // "active" | "closed"
+  closedAt      DateTime?
+  closePrice    Decimal?  @db.Decimal(20, 8)
+  personalPnl   Decimal?  @db.Decimal(10, 4)
+  notes         String?
+
+  subscriber User   @relation("SubscriberTrackedSignals", fields: [subscriberId], references: [id], onDelete: Cascade)
+  analyst    User   @relation("AnalystTrackedSignals", fields: [analystId], references: [id], onDelete: Cascade)
+  signal     Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, signalId])
+  @@index([subscriberId, status])
+  @@index([subscriberId, analystId])
+}
+
+// Phase 5: helpful / not-helpful vote on a Review.
+// Denormalized counts live on Review for fast sorting.
+model ReviewVote {
+  id        String   @id @default(cuid())
+  reviewId  String
+  userId    String
+  helpful   Boolean
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, userId])
+  @@index([reviewId])
 }
 
 model ChatMessage {
-  id            String    @id @default(cuid())
-  roomId        String
-  authorId      String
-  content       String
-  replyToId     String?
-  isPinned      Boolean   @default(false)
-  isDeleted     Boolean   @default(false)
-  createdAt     DateTime  @default(now())
+  id          String    @id @default(cuid())
+  roomId      String
+  authorId    String
+  content     String
+  replyToId   String?
+  isPinned    Boolean   @default(false)
+  isDeleted   Boolean   @default(false)
+  // Phase 6: media attachments + soft moderation delete + message type
+  mediaUrl    String?
+  mediaType   String?
+  deletedAt   DateTime?
+  deletedBy   String?
+  messageType String    @default("message") // "message" | "announcement" | "system"
+  createdAt   DateTime  @default(now())
 
   author  User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   replyTo ChatMessage?  @relation("ChatReplies", fields: [replyToId], references: [id])
@@ -153,13 +276,13 @@ model ChatMessage {
 }
 
 model Announcement {
-  id          String   @id @default(cuid())
-  analystId   String
-  title       String
-  content     String   @db.Text
-  isPinned    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  analystId String
+  title     String
+  content   String   @db.Text
+  isPinned  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   analyst User @relation(fields: [analystId], references: [id], onDelete: Cascade)
 
@@ -240,4 +363,125 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ─── Phase 6: Community & Engagement ───────────────────────────────────────
+
+// Tracks the last message a user has read in a chat room. Used to render
+// "seen by" avatars on recent messages.
+model ChatReadReceipt {
+  id                String   @id @default(cuid())
+  roomId            String
+  userId            String
+  lastReadMessageId String
+  lastReadAt        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+}
+
+// Per-room moderation membership. Default role for any user who can post is
+// implicit "member" (no row). Rows are created when an analyst mutes or bans.
+model ChatRoomMember {
+  id         String    @id @default(cuid())
+  roomId     String
+  userId     String
+  role       String    @default("member") // "member" | "muted" | "banned"
+  mutedAt    DateTime?
+  mutedUntil DateTime? // null = permanent mute
+  bannedAt   DateTime?
+  reason     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+}
+
+// Activity feed event log. Created as side-effects of signal/announcement
+// publication and subscriber milestones.
+model FeedEvent {
+  id         String   @id @default(cuid())
+  type       String // see PRD §4.1 event-type table
+  actorId    String
+  analystId  String? // denormalized for analyst-scoped feeds
+  signalId   String?
+  metadata   Json?
+  visibility String   @default("public") // "public" | "subscribers"
+  createdAt  DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([analystId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@index([type, createdAt])
+}
+
+// Free follow mechanic. A subscription implies a follow; unsubscribing
+// does NOT auto-unfollow.
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String
+  analystId  String
+  createdAt  DateTime @default(now())
+
+  follower User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  analyst  User @relation("UserFollowers", fields: [analystId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, analystId])
+  @@index([followerId])
+  @@index([analystId])
+}
+
+model SignalLike {
+  id        String   @id @default(cuid())
+  userId    String
+  signalId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signal Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, signalId])
+  @@index([signalId])
+}
+
+model SignalBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  signalId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signal Signal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, signalId])
+  @@index([userId, createdAt])
+  @@index([signalId])
+}
+
+// ─── Phase 7: Platform Hardening ───────────────────────────────────────────
+
+// Phase 7 session tracking. Distinct from the NextAuth `Session` model
+// (which is unused by the JWT strategy). UserSession rows are created on
+// every sign-in and looked up best-effort on every authenticated request via
+// the JWT `jti` claim. Setting `revokedAt` invalidates the JWT on next use.
+model UserSession {
+  id         String    @id @default(cuid())
+  userId     String
+  token      String    @unique // JWT jti claim
+  userAgent  String?
+  ipAddress  String?
+  lastActive DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
 }

@@ -13,6 +13,9 @@ import {
   Grid3X3,
   Pencil,
   Signal,
+  Wallet,
+  Rss,
+  Bookmark,
   ChevronsLeft,
   ChevronsRight,
   type LucideIcon,
@@ -26,6 +29,11 @@ interface NavItem {
 
 const discoverItems: NavItem[] = [
   { label: "Marketplace", Icon: Store, path: "/marketplace" },
+  // Phase 5: subscriber portfolio
+  { label: "Portfolio", Icon: Wallet, path: "/portfolio" },
+  // Phase 6: community feed + bookmarks
+  { label: "Feed", Icon: Rss, path: "/feed" },
+  { label: "Bookmarks", Icon: Bookmark, path: "/bookmarks" },
 ];
 
 const terminalItems: NavItem[] = [

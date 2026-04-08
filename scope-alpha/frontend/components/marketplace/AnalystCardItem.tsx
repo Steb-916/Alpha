@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import type { AnalystCard } from "@/lib/marketplace";
+import { FollowButton } from "@/components/social/FollowButton";
 
 interface Props {
   analyst: AnalystCard;
+  // Phase 5: comparison checkbox state, optional so the card still works in
+  // contexts that don't have compare selection.
+  isCompareSelected?: boolean;
+  onToggleCompare?: () => void;
 }
 
 function MiniSparkline({ data, positive }: { data: number[]; positive: boolean }) {
@@ -65,26 +70,58 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-export function AnalystCardItem({ analyst }: Props) {
+export function AnalystCardItem({ analyst, isCompareSelected, onToggleCompare }: Props) {
   const isPositive = analyst.totalPnl90d >= 0;
+
+  // Phase 5: clicking the compare checkbox should NOT navigate to the
+  // analyst page, so we stop propagation.
+  const handleCheckbox = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleCompare?.();
+  };
 
   return (
     <Link href={`/analyst/${analyst.slug}`} className="block no-underline">
       <div
-        className="p-4 rounded-[var(--radius-md)] transition-all cursor-pointer group"
+        className="p-4 rounded-[var(--radius-md)] transition-all cursor-pointer group relative"
         style={{
           background: "var(--glass-bg)",
-          border: "1px solid var(--glass-border)",
+          border: `1px solid ${isCompareSelected ? "rgba(0, 212, 170, 0.5)" : "var(--glass-border)"}`,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = "rgba(0, 212, 170, 0.3)";
-          e.currentTarget.style.background = "rgba(0, 212, 170, 0.03)";
+          if (!isCompareSelected) {
+            e.currentTarget.style.borderColor = "rgba(0, 212, 170, 0.3)";
+            e.currentTarget.style.background = "rgba(0, 212, 170, 0.03)";
+          }
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = "var(--glass-border)";
-          e.currentTarget.style.background = "var(--glass-bg)";
+          if (!isCompareSelected) {
+            e.currentTarget.style.borderColor = "var(--glass-border)";
+            e.currentTarget.style.background = "var(--glass-bg)";
+          }
         }}
       >
+        {/* Phase 5: Compare checkbox in top-right corner */}
+        {onToggleCompare && (
+          <button
+            type="button"
+            onClick={handleCheckbox}
+            className="absolute top-2 right-2 w-5 h-5 rounded flex items-center justify-center cursor-pointer"
+            style={{
+              background: isCompareSelected ? "var(--accent-green)" : "var(--glass-bg)",
+              border: `1px solid ${isCompareSelected ? "var(--accent-green)" : "var(--glass-border)"}`,
+            }}
+            title={isCompareSelected ? "Remove from compare" : "Add to compare"}
+            aria-label={isCompareSelected ? "Remove from compare" : "Add to compare"}
+          >
+            {isCompareSelected && (
+              <span className="text-[10px] font-bold" style={{ color: "#fff" }}>
+                ✓
+              </span>
+            )}
+          </button>
+        )}
         {/* Header row: avatar + name + price */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2.5">
@@ -171,6 +208,11 @@ export function AnalystCardItem({ analyst }: Props) {
             <StarRating rating={analyst.avgRating} />
             <Badge variant="blue">{analyst.activeSignals} active</Badge>
           </div>
+        </div>
+
+        {/* Phase 6: Follow button */}
+        <div className="mt-3 flex justify-end" onClick={(e) => e.preventDefault()}>
+          <FollowButton analystId={analyst.id} compact />
         </div>
       </div>
     </Link>

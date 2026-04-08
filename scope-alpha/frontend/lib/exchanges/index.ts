@@ -38,10 +38,16 @@ export function getPrimaryExchange(): ExchangeConnector {
   return getExchange('binance');
 }
 
-/** Get all enabled exchange connectors. */
+/**
+ * Get all enabled exchange connectors.
+ *
+ * Phase 1 default: Binance + Bybit (per user decision). OKX deferred.
+ * Set DISABLE_BYBIT=true to fall back to Binance-only, or ENABLE_OKX=true
+ * to opt into OKX (its REST methods are still stubs as of this commit).
+ */
 export function getEnabledExchanges(): ExchangeConnector[] {
   const exchanges: ExchangeConnector[] = [getExchange('binance')];
-  if (process.env.ENABLE_BYBIT === 'true') exchanges.push(getExchange('bybit'));
+  if (process.env.DISABLE_BYBIT !== 'true') exchanges.push(getExchange('bybit'));
   if (process.env.ENABLE_OKX === 'true') exchanges.push(getExchange('okx'));
   return exchanges;
 }

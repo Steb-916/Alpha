@@ -12,6 +12,7 @@
 import type { OHLCV, Ticker, FundingRate, Liquidation, MarkPrice } from '../exchanges/types';
 import { getMarketDataCache } from './cache';
 import { toBinanceSymbol, toBinanceInterval } from '../exchanges/utils';
+import { recordLiquidation } from './liquidation-bridge';
 
 const WS_BASE = process.env.BINANCE_FUTURES_WS_URL || 'wss://fstream.binance.com';
 
@@ -194,6 +195,9 @@ class WebSocketManager {
 
       cache.addLiquidation(liq);
       this._notifySSEClients('liquidation', liq);
+      // Bridge to the stateless health-score path: maintain a rolling 24h
+      // aggregate per symbol in Redis (throttled flush).
+      recordLiquidation(liq);
     });
   }
 

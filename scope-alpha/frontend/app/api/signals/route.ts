@@ -1,145 +1,166 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
+import {
+  validateSignalBody,
+  validateTargets,
+  type SignalBodyInput,
+  type SignalTargetInput,
+} from '@/lib/signals/validation';
+import { serializeSignal } from '@/lib/signals/serializer';
+import { ensureRateLimit } from '@/lib/rateLimit';
+import { sanitizeRichText } from '@/lib/sanitize';
+import { captureRouteError } from '@/lib/sentry';
 
 // GET /api/signals?analystId=...&status=active&assetSymbol=BTC
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { searchParams } = new URL(request.url);
-  const analystId = searchParams.get("analystId");
-  const status = searchParams.get("status");
-  const assetSymbol = searchParams.get("assetSymbol");
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const analystId = searchParams.get('analystId');
+  const status = searchParams.get('status');
+  const assetSymbol = searchParams.get('assetSymbol');
+  const limit = parseInt(searchParams.get('limit') || '50');
 
   const where: Record<string, unknown> = {};
   if (analystId) where.analystId = analystId;
   if (status) where.status = status;
   if (assetSymbol) where.assetSymbol = assetSymbol;
 
+  // Drafts are private — only the owning analyst can see them.
+  // If the caller filters by status='draft', enforce ownership.
+  if (status === 'draft' && analystId !== session.user.id) {
+    where.analystId = session.user.id;
+  }
+
   const signals = await prisma.signal.findMany({
     where,
-    orderBy: { publishedAt: "desc" },
+    include: { targets: { orderBy: { order: 'asc' } } },
+    orderBy: { publishedAt: 'desc' },
     take: Math.min(limit, 100),
   });
 
-  // Convert Decimals to numbers for JSON serialization
-  const serialized = signals.map((s) => ({
-    ...s,
-    entryPrice: Number(s.entryPrice),
-    targetPrice: Number(s.targetPrice),
-    stopLossPrice: Number(s.stopLossPrice),
-    resolvedPrice: s.resolvedPrice ? Number(s.resolvedPrice) : null,
-    resultPnlPercent: s.resultPnlPercent ? Number(s.resultPnlPercent) : null,
-  }));
-
-  return NextResponse.json(serialized);
+  return NextResponse.json(signals.map(serializeSignal));
 }
 
 // POST /api/signals — create new signal (analyst only)
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (session.user.role !== "analyst") {
+  if (session.user.role !== 'analyst') {
     return NextResponse.json(
-      { error: "Only analysts can create signals" },
-      { status: 403 }
+      { error: 'Only analysts can create signals' },
+      { status: 403 },
+    );
+  }
+
+  const limited = await ensureRateLimit('signals/create', request, session.user.id);
+  if (limited) return limited;
+
+  // Phase 7: gate creation on the analyst publishing agreement.
+  const userRow = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { analystAgreementAcceptedAt: true },
+  });
+  if (!userRow?.analystAgreementAcceptedAt) {
+    return NextResponse.json(
+      { error: 'Publishing agreement not accepted', code: 'AGREEMENT_REQUIRED' },
+      { status: 403 },
     );
   }
 
   try {
-    const body = await request.json();
-    const {
-      assetSymbol,
-      direction,
-      entryPrice,
-      targetPrice,
-      stopLossPrice,
-      timeframe,
-      conviction,
-      notes,
-    } = body;
+    const body = (await request.json()) as SignalBodyInput;
 
-    // Validate required fields
-    if (!assetSymbol || !direction || !entryPrice || !targetPrice || !stopLossPrice || !timeframe) {
+    // Body validation (asset, direction, entry, stop, timeframe, etc.)
+    const bodyResult = validateSignalBody(body);
+    if (!bodyResult.ok) {
       return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
+        { error: bodyResult.errors[0].message, errors: bodyResult.errors },
+        { status: 400 },
       );
     }
 
-    // Validate direction
-    if (!["long", "short"].includes(direction)) {
-      return NextResponse.json(
-        { error: "Direction must be 'long' or 'short'" },
-        { status: 400 }
-      );
-    }
-
-    // Validate price logic
-    if (direction === "long") {
-      if (targetPrice <= entryPrice) {
+    // Multi-target vs single-target normalization.
+    // If the client sent targets[], use those. Otherwise synthesize a single
+    // target from the legacy `targetPrice` field for backward compat with
+    // the existing NewSignalForm.
+    let targets: SignalTargetInput[];
+    if (Array.isArray(body.targets) && body.targets.length > 0) {
+      const targetResult = validateTargets(body.targets, body.direction, body.entryPrice);
+      if (!targetResult.ok) {
         return NextResponse.json(
-          { error: "Target must be above entry for long signals" },
-          { status: 400 }
+          { error: targetResult.errors[0].message, errors: targetResult.errors },
+          { status: 400 },
         );
       }
-      if (stopLossPrice >= entryPrice) {
-        return NextResponse.json(
-          { error: "Stop loss must be below entry for long signals" },
-          { status: 400 }
-        );
-      }
+      targets = body.targets;
     } else {
-      if (targetPrice >= entryPrice) {
+      if (typeof body.targetPrice !== 'number') {
         return NextResponse.json(
-          { error: "Target must be below entry for short signals" },
-          { status: 400 }
+          { error: 'targetPrice or targets[] required' },
+          { status: 400 },
         );
       }
-      if (stopLossPrice <= entryPrice) {
+      // Synthesize a single TP1 with full close. Validate it the same way.
+      const synthesized: SignalTargetInput[] = [
+        { label: 'TP1', price: body.targetPrice, closePercent: 100 },
+      ];
+      const targetResult = validateTargets(synthesized, body.direction, body.entryPrice);
+      if (!targetResult.ok) {
         return NextResponse.json(
-          { error: "Stop loss must be above entry for short signals" },
-          { status: 400 }
+          { error: targetResult.errors[0].message, errors: targetResult.errors },
+          { status: 400 },
         );
       }
+      targets = synthesized;
     }
+
+    const status = body.status || 'active';
+    const isDraft = status === 'draft';
+
+    // The legacy `targetPrice` column stores TP1's price so existing
+    // queries (and clients that haven't been upgraded) keep working.
+    const legacyTargetPrice = targets[0].price;
 
     const signal = await prisma.signal.create({
       data: {
         analystId: session.user.id,
-        assetSymbol,
-        direction,
-        entryPrice,
-        targetPrice,
-        stopLossPrice,
-        timeframe,
-        conviction: conviction || "medium",
-        notes: notes || null,
+        assetSymbol: body.assetSymbol,
+        direction: body.direction,
+        entryPrice: new Prisma.Decimal(body.entryPrice),
+        targetPrice: new Prisma.Decimal(legacyTargetPrice),
+        stopLossPrice: new Prisma.Decimal(body.stopLossPrice),
+        timeframe: body.timeframe,
+        conviction: body.conviction || 'medium',
+        notes: body.notes ? sanitizeRichText(body.notes) : null,
+        status,
+        publishedAt: isDraft ? null : new Date(),
+        templateId: body.templateId || null,
+        screenshotUrl: body.screenshotUrl || null,
+        targets: {
+          create: targets.map((t, idx) => ({
+            label: t.label,
+            price: new Prisma.Decimal(t.price),
+            closePercent: t.closePercent,
+            order: idx + 1,
+          })),
+        },
       },
+      include: { targets: { orderBy: { order: 'asc' } } },
     });
 
-    return NextResponse.json(
-      {
-        ...signal,
-        entryPrice: Number(signal.entryPrice),
-        targetPrice: Number(signal.targetPrice),
-        stopLossPrice: Number(signal.stopLossPrice),
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(serializeSignal(signal), { status: 201 });
   } catch (error) {
-    console.error("Create signal error:", error);
-    return NextResponse.json(
-      { error: "Failed to create signal" },
-      { status: 500 }
-    );
+    captureRouteError(error, { route: '/api/signals POST', userId: session.user.id });
+    return NextResponse.json({ error: 'Failed to create signal' }, { status: 500 });
   }
 }

@@ -130,17 +130,23 @@ export class BybitConnector implements ExchangeConnector {
     const result = await fetchJSON<{ list: any[] }>('/market/tickers', params);
     return (result.list || [])
       .filter((t: any) => t.symbol?.endsWith('USDT'))
-      .map((t: any) => ({
-        symbol: t.symbol,
-        exchange: 'bybit',
-        lastPrice: parseFloat(t.lastPrice || '0'),
-        priceChange24h: parseFloat(t.price24hPcnt || '0') * parseFloat(t.prevPrice24h || '0'),
-        priceChangePercent24h: parseFloat(t.price24hPcnt || '0') * 100,
-        volume24h: parseFloat(t.turnover24h || '0'),
-        high24h: parseFloat(t.highPrice24h || '0'),
-        low24h: parseFloat(t.lowPrice24h || '0'),
-        timestamp: Date.now(),
-      }));
+      .map((t: any) => {
+        const lastPrice = parseFloat(t.lastPrice || '0');
+        const prev = parseFloat(t.prevPrice24h || '0');
+        return {
+          symbol: t.symbol,
+          exchange: 'bybit',
+          lastPrice,
+          // Bybit gives `price24hPcnt` as a fractional change (e.g. 0.024 = +2.4%).
+          // The previous code multiplied two unrelated quantities — fixed below.
+          priceChange24h: lastPrice - prev,
+          priceChangePercent24h: parseFloat(t.price24hPcnt || '0') * 100,
+          volume24h: parseFloat(t.turnover24h || '0'),
+          high24h: parseFloat(t.highPrice24h || '0'),
+          low24h: parseFloat(t.lowPrice24h || '0'),
+          timestamp: Date.now(),
+        };
+      });
   }
 
   // WebSocket stubs — Phase 1 stretch

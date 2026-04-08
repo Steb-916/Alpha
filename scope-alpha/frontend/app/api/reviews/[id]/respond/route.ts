@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { sanitizeRichText } from "@/lib/sanitize";
+import { captureRouteError } from "@/lib/sentry";
 
 // POST /api/reviews/[id]/respond — analyst responds to a review
 export async function POST(
@@ -12,6 +15,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await ensureRateLimit("default", request, session.user.id);
+  if (limited) return limited;
 
   const review = await prisma.review.findUnique({
     where: { id: params.id },
@@ -28,9 +34,9 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { response } = body;
+    const response = sanitizeRichText(body.response);
 
-    if (!response || response.trim().length === 0) {
+    if (!response || response.length === 0) {
       return NextResponse.json(
         { error: "Response content is required" },
         { status: 400 }
@@ -39,12 +45,12 @@ export async function POST(
 
     const updated = await prisma.review.update({
       where: { id: params.id },
-      data: { analystResponse: response.trim() },
+      data: { analystResponse: response },
     });
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error("Respond to review error:", error);
+    captureRouteError(error, { route: "/api/reviews/[id]/respond", userId: session.user.id });
     return NextResponse.json(
       { error: "Failed to respond to review" },
       { status: 500 }

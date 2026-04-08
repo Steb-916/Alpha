@@ -234,6 +234,30 @@ function LoginForm() {
           Sign up
         </Link>
       </p>
+
+      {/* Phase 7: Terms + Privacy footer links */}
+      <p
+        className="mt-4 text-center text-[10px] font-body"
+        style={{ color: "var(--text-tertiary)" }}
+      >
+        By signing in you agree to our{" "}
+        <Link
+          href="/legal/terms"
+          className="no-underline"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link
+          href="/legal/privacy"
+          className="no-underline"
+          style={{ color: "var(--text-muted)" }}
+        >
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </GlassCard>
   );
 }

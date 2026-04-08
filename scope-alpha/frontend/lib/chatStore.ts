@@ -1,86 +1,81 @@
+/**
+ * Chat store — Phase 6 rewrite.
+ *
+ * This used to be a fully client-side mock. Phase 6 wires it to the real
+ * `/api/chat/[roomId]` API with 10-second polling per active room.
+ *
+ * The exported interface is intentionally kept identical to the previous
+ * mock so the UI imports don't need to change. New methods are additive:
+ * `openRoom`, `closeRoom`, `refreshRoom`, `loadOlder`, `pollPresence`.
+ *
+ * The mock `rooms` list (analyst directory) is preserved as a static label
+ * source — the actual messages now come from the API per room.
+ */
+
 import { create } from "zustand";
-import type { ChatMessage, Announcement, ChatRoom } from "./chat";
+import type {
+  Announcement,
+  ChatMessage,
+  ChatRoom,
+  ChatRoomModerationState,
+  ChatPresenceData,
+  ChatReadReceiptEntry,
+} from "./chat";
 
-// Mock data for demo
-function generateMockMessages(roomId: string, analystName: string): ChatMessage[] {
-  const msgs: ChatMessage[] = [];
-  const now = Date.now();
-  const users = [
-    { id: "analyst-1", name: analystName, initial: analystName[0] },
-    { id: "user-1", name: "TraderJoe", initial: "T" },
-    { id: "user-2", name: "CryptoApe", initial: "C" },
-    { id: "user-3", name: "DeFiDegen", initial: "D" },
-  ];
-  const contents = [
-    "Looking at BTC structure here — this level has held 3x on the 4H. If we get a clean bounce I'm adding to my long.",
-    "What's your take on the ETH funding flip?",
-    "Good call on that SOL entry 🎯",
-    "Anyone else seeing the divergence on the 1D?",
-    "Just published a new signal — check the signals tab",
-    "That stop was tight, nice R:R on that one",
-    "The liquidation cluster at 64k is massive. Watching closely.",
-    "Agree with the thesis. OI building nicely.",
-    "When do you think the breakout happens?",
-    "Patience. The setup needs time to develop.",
-    "That funding rate is getting extreme",
-    "New annotation on the BTC chart — check the support zone I drew",
-  ];
+const POLL_INTERVAL_MS = 10_000;
 
-  for (let i = 0; i < 12; i++) {
-    const user = users[i % users.length];
-    const isReply = i === 2 || i === 5 || i === 9;
-    msgs.push({
-      id: `msg-${roomId}-${i}`,
-      roomId,
-      authorId: user.id,
-      authorName: user.name,
-      authorInitial: user.initial,
-      content: contents[i],
-      replyToId: isReply ? `msg-${roomId}-${i - 1}` : null,
-      replyToContent: isReply ? contents[i - 1].slice(0, 50) + "..." : null,
-      replyToAuthor: isReply ? users[(i - 1) % users.length].name : null,
-      isPinned: i === 0,
-      isDeleted: false,
-      createdAt: new Date(now - (12 - i) * 300000).toISOString(),
-    });
-  }
-  return msgs;
+// Helper: convert a Prisma chat message row (as returned by the API) into
+// the legacy `ChatMessage` shape the existing UI expects.
+type ApiMessage = {
+  id: string;
+  roomId: string;
+  authorId: string;
+  authorName?: string | null;
+  content: string;
+  replyToId: string | null;
+  replyToContent?: string | null;
+  replyToAuthor?: string | null;
+  isPinned: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  mediaUrl?: string | null;
+  mediaType?: string | null;
+  deletedAt?: string | null;
+  deletedBy?: string | null;
+  messageType?: "message" | "announcement" | "system";
+};
+
+function normalizeApiMessage(m: ApiMessage): ChatMessage {
+  const name = m.authorName || "Unknown";
+  return {
+    id: m.id,
+    roomId: m.roomId,
+    authorId: m.authorId,
+    authorName: name,
+    authorInitial: (name[0] ?? "?").toUpperCase(),
+    content: m.content,
+    replyToId: m.replyToId,
+    replyToContent: m.replyToContent ?? null,
+    replyToAuthor: m.replyToAuthor ?? null,
+    isPinned: m.isPinned,
+    isDeleted: m.isDeleted || m.deletedAt != null,
+    createdAt: m.createdAt,
+    mediaUrl: m.mediaUrl ?? null,
+    mediaType: m.mediaType ?? null,
+    deletedAt: m.deletedAt ?? null,
+    deletedBy: m.deletedBy ?? null,
+    messageType: m.messageType ?? "message",
+  };
 }
 
-function generateMockAnnouncements(analystId: string, analystName: string): Announcement[] {
-  const now = Date.now();
-  return [
-    {
-      id: `ann-${analystId}-1`,
-      analystId,
-      analystName,
-      title: "Weekly Market Outlook",
-      content: "BTC holding above key support. Watching for a breakout above 68k for continuation. ETH looks constructive with funding neutral. SOL needs to reclaim 150 for bullish bias. Stay patient — setups are forming.",
-      isPinned: true,
-      createdAt: new Date(now - 3600000).toISOString(),
-    },
-    {
-      id: `ann-${analystId}-2`,
-      analystId,
-      analystName,
-      title: "New Signal Published",
-      content: "Just published a high-conviction BTC long signal. Entry, target, and stop are live on the signals tab. This is a swing setup — expect 3-7 day hold time.",
-      isPinned: false,
-      createdAt: new Date(now - 86400000).toISOString(),
-    },
-    {
-      id: `ann-${analystId}-3`,
-      analystId,
-      analystName,
-      title: "Performance Update",
-      content: "Another strong week: 4/5 signals hit target. Running a 78% win rate over the last 30 days. The key is patience and waiting for high-probability setups at key levels.",
-      isPinned: false,
-      createdAt: new Date(now - 172800000).toISOString(),
-    },
-  ];
+interface ApiResponse {
+  messages: ApiMessage[];
+  readReceipts?: ChatReadReceiptEntry[];
+  moderation?: ChatRoomModerationState;
 }
 
 interface ChatState {
+  // Existing UI state (preserved)
   isOpen: boolean;
   activeRoom: string | null;
   activeTab: "chat" | "announcements";
@@ -89,80 +84,182 @@ interface ChatState {
   announcements: Record<string, Announcement[]>;
   replyingTo: ChatMessage | null;
 
+  // Phase 6 additions
+  loading: Record<string, boolean>;
+  errors: Record<string, string | null>;
+  oldestCursor: Record<string, string | null>;
+  hasMore: Record<string, boolean>;
+  readReceipts: Record<string, ChatReadReceiptEntry[]>;
+  moderation: Record<string, ChatRoomModerationState>;
+  presence: Record<string, ChatPresenceData>;
+  pollTimers: Record<string, ReturnType<typeof setInterval>>;
+  presenceTimers: Record<string, ReturnType<typeof setInterval>>;
+
+  // Existing actions (preserved signatures)
   toggleDrawer: () => void;
   setActiveRoom: (roomId: string) => void;
   setActiveTab: (tab: "chat" | "announcements") => void;
-  sendMessage: (content: string) => void;
+  sendMessage: (
+    content: string,
+    opts?: { mediaUrl?: string; mediaType?: string },
+  ) => Promise<void>;
   setReplyingTo: (msg: ChatMessage | null) => void;
   pinMessage: (msgId: string) => void;
   deleteMessage: (msgId: string) => void;
   createAnnouncement: (title: string, content: string) => void;
   markRoomRead: (roomId: string) => void;
   getTotalUnread: () => number;
+
+  // Phase 6 actions
+  openRoom: (roomId: string) => Promise<void>;
+  closeRoom: (roomId: string) => void;
+  refreshRoom: (roomId: string) => Promise<void>;
+  loadOlder: (roomId: string) => Promise<void>;
+  pollPresence: (roomId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
   isOpen: false,
   activeRoom: null,
   activeTab: "chat",
+  // Static "directory" of analyst rooms — labels only. Actual message data
+  // comes from the API per room via openRoom().
   rooms: [
-    { analystId: "crypto-rex", analystName: "CryptoRex", analystInitial: "C", unreadCount: 3 },
-    { analystId: "degen-sensei", analystName: "DegenSensei", analystInitial: "D", unreadCount: 1 },
+    {
+      analystId: "crypto-rex",
+      analystName: "CryptoRex",
+      analystInitial: "C",
+      unreadCount: 0,
+    },
+    {
+      analystId: "degen-sensei",
+      analystName: "DegenSensei",
+      analystInitial: "D",
+      unreadCount: 0,
+    },
   ],
-  messages: {
-    "crypto-rex": generateMockMessages("crypto-rex", "CryptoRex"),
-    "degen-sensei": generateMockMessages("degen-sensei", "DegenSensei"),
-  },
-  announcements: {
-    "crypto-rex": generateMockAnnouncements("crypto-rex", "CryptoRex"),
-    "degen-sensei": generateMockAnnouncements("degen-sensei", "DegenSensei"),
-  },
+  messages: {},
+  announcements: {},
   replyingTo: null,
+
+  loading: {},
+  errors: {},
+  oldestCursor: {},
+  hasMore: {},
+  readReceipts: {},
+  moderation: {},
+  presence: {},
+  pollTimers: {},
+  presenceTimers: {},
 
   toggleDrawer: () =>
     set((state) => {
       const opening = !state.isOpen;
-      return {
-        isOpen: opening,
-        activeRoom: opening && !state.activeRoom && state.rooms.length > 0
+      const nextActive =
+        opening && !state.activeRoom && state.rooms.length > 0
           ? state.rooms[0].analystId
-          : state.activeRoom,
-      };
+          : state.activeRoom;
+      if (opening && nextActive) {
+        // Fire-and-forget — openRoom is async but toggle shouldn't block.
+        void get().openRoom(nextActive);
+      }
+      return { isOpen: opening, activeRoom: nextActive };
     }),
 
-  setActiveRoom: (roomId) => set({ activeRoom: roomId, replyingTo: null }),
+  setActiveRoom: (roomId) => {
+    const prev = get().activeRoom;
+    if (prev && prev !== roomId) {
+      get().closeRoom(prev);
+    }
+    set({ activeRoom: roomId, replyingTo: null });
+    void get().openRoom(roomId);
+  },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
-  sendMessage: (content) =>
-    set((state) => {
-      const room = state.activeRoom;
-      if (!room) return state;
-      const newMsg: ChatMessage = {
-        id: `msg-${room}-${Date.now()}`,
-        roomId: room,
-        authorId: "current-user",
-        authorName: "You",
-        authorInitial: "Y",
-        content,
-        replyToId: state.replyingTo?.id || null,
-        replyToContent: state.replyingTo?.content.slice(0, 50) || null,
-        replyToAuthor: state.replyingTo?.authorName || null,
-        isPinned: false,
-        isDeleted: false,
-        createdAt: new Date().toISOString(),
-      };
-      return {
+  sendMessage: async (content, opts) => {
+    const roomId = get().activeRoom;
+    if (!roomId || !content.trim()) return;
+
+    const replyingTo = get().replyingTo;
+
+    // Optimistic append.
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: ChatMessage = {
+      id: tempId,
+      roomId,
+      authorId: "you",
+      authorName: "You",
+      authorInitial: "Y",
+      content,
+      replyToId: replyingTo?.id ?? null,
+      replyToContent: replyingTo?.content.slice(0, 80) ?? null,
+      replyToAuthor: replyingTo?.authorName ?? null,
+      isPinned: false,
+      isDeleted: false,
+      createdAt: new Date().toISOString(),
+      mediaUrl: opts?.mediaUrl ?? null,
+      mediaType: opts?.mediaType ?? null,
+      messageType: "message",
+    };
+
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [roomId]: [...(state.messages[roomId] || []), tempMsg],
+      },
+      replyingTo: null,
+    }));
+
+    try {
+      const res = await fetch(`/api/chat/${roomId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          replyToId: replyingTo?.id,
+          mediaUrl: opts?.mediaUrl,
+          mediaType: opts?.mediaType,
+        }),
+      });
+      if (!res.ok) {
+        // Roll back optimistic message.
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [roomId]: (state.messages[roomId] || []).filter(
+              (m) => m.id !== tempId,
+            ),
+          },
+          errors: {
+            ...state.errors,
+            [roomId]: `Failed to send: HTTP ${res.status}`,
+          },
+        }));
+        return;
+      }
+      // Refetch to get the real server-assigned ID + any side-effect rows.
+      await get().refreshRoom(roomId);
+    } catch (err) {
+      set((state) => ({
         messages: {
           ...state.messages,
-          [room]: [...(state.messages[room] || []), newMsg],
+          [roomId]: (state.messages[roomId] || []).filter(
+            (m) => m.id !== tempId,
+          ),
         },
-        replyingTo: null,
-      };
-    }),
+        errors: {
+          ...state.errors,
+          [roomId]: (err as Error).message || "Send failed",
+        },
+      }));
+    }
+  },
 
   setReplyingTo: (msg) => set({ replyingTo: msg }),
 
+  // Pin/delete are LOCAL-ONLY for backward compat with the legacy demo flow.
+  // Phase 6 moderation goes through ModerationMenu → /api/chat/[roomId]/moderate.
   pinMessage: (msgId) =>
     set((state) => {
       const room = state.activeRoom;
@@ -171,7 +268,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: {
           ...state.messages,
           [room]: (state.messages[room] || []).map((m) =>
-            m.id === msgId ? { ...m, isPinned: !m.isPinned } : m
+            m.id === msgId ? { ...m, isPinned: !m.isPinned } : m,
           ),
         },
       };
@@ -185,7 +282,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: {
           ...state.messages,
           [room]: (state.messages[room] || []).map((m) =>
-            m.id === msgId ? { ...m, isDeleted: true, content: "[deleted]" } : m
+            m.id === msgId ? { ...m, isDeleted: true, content: "[deleted]" } : m,
           ),
         },
       };
@@ -216,9 +313,171 @@ export const useChatStore = create<ChatState>((set, get) => ({
   markRoomRead: (roomId) =>
     set((state) => ({
       rooms: state.rooms.map((r) =>
-        r.analystId === roomId ? { ...r, unreadCount: 0 } : r
+        r.analystId === roomId ? { ...r, unreadCount: 0 } : r,
       ),
     })),
 
   getTotalUnread: () => get().rooms.reduce((sum, r) => sum + r.unreadCount, 0),
+
+  // ─── Phase 6 backend sync actions ─────────────────────────────────────────
+
+  openRoom: async (roomId) => {
+    if (get().pollTimers[roomId]) {
+      // Already polling — just refresh.
+      await get().refreshRoom(roomId);
+      return;
+    }
+
+    await get().refreshRoom(roomId);
+
+    const messageTimer = setInterval(() => {
+      void get().refreshRoom(roomId);
+    }, POLL_INTERVAL_MS);
+
+    const presenceTimer = setInterval(() => {
+      void get().pollPresence(roomId);
+    }, POLL_INTERVAL_MS);
+
+    // Send heartbeat once on open and start the presence cycle.
+    void get().pollPresence(roomId);
+
+    set((state) => ({
+      pollTimers: { ...state.pollTimers, [roomId]: messageTimer },
+      presenceTimers: { ...state.presenceTimers, [roomId]: presenceTimer },
+    }));
+  },
+
+  closeRoom: (roomId) => {
+    const state = get();
+    const messageTimer = state.pollTimers[roomId];
+    const presenceTimer = state.presenceTimers[roomId];
+    if (messageTimer) clearInterval(messageTimer);
+    if (presenceTimer) clearInterval(presenceTimer);
+    set((s) => {
+      const nextPoll = { ...s.pollTimers };
+      const nextPresence = { ...s.presenceTimers };
+      delete nextPoll[roomId];
+      delete nextPresence[roomId];
+      return { pollTimers: nextPoll, presenceTimers: nextPresence };
+    });
+  },
+
+  refreshRoom: async (roomId) => {
+    set((state) => ({
+      loading: { ...state.loading, [roomId]: true },
+    }));
+    try {
+      const res = await fetch(`/api/chat/${roomId}?limit=50`);
+      if (res.status === 403) {
+        const data = await res.json().catch(() => ({}));
+        set((state) => ({
+          moderation: {
+            ...state.moderation,
+            [roomId]: {
+              role: "banned",
+              mutedUntil: null,
+              bannedAt: new Date().toISOString(),
+            },
+          },
+          errors: {
+            ...state.errors,
+            [roomId]: data.error || "You are banned from this room",
+          },
+          loading: { ...state.loading, [roomId]: false },
+        }));
+        return;
+      }
+      if (!res.ok) {
+        set((state) => ({
+          errors: {
+            ...state.errors,
+            [roomId]: `HTTP ${res.status}`,
+          },
+          loading: { ...state.loading, [roomId]: false },
+        }));
+        return;
+      }
+
+      const body = await res.json();
+      // Two possible shapes — legacy array, Phase 6 envelope.
+      const api: ApiResponse = Array.isArray(body)
+        ? { messages: body, readReceipts: [], moderation: undefined }
+        : body;
+
+      const normalized = api.messages.map(normalizeApiMessage);
+
+      set((state) => ({
+        messages: { ...state.messages, [roomId]: normalized },
+        oldestCursor: {
+          ...state.oldestCursor,
+          [roomId]: normalized[0]?.createdAt ?? null,
+        },
+        hasMore: { ...state.hasMore, [roomId]: normalized.length >= 50 },
+        readReceipts: {
+          ...state.readReceipts,
+          [roomId]: api.readReceipts ?? [],
+        },
+        moderation: api.moderation
+          ? { ...state.moderation, [roomId]: api.moderation }
+          : state.moderation,
+        errors: { ...state.errors, [roomId]: null },
+        loading: { ...state.loading, [roomId]: false },
+      }));
+    } catch (err) {
+      set((state) => ({
+        errors: {
+          ...state.errors,
+          [roomId]: (err as Error).message || "Fetch failed",
+        },
+        loading: { ...state.loading, [roomId]: false },
+      }));
+    }
+  },
+
+  loadOlder: async (roomId) => {
+    const cursor = get().oldestCursor[roomId];
+    if (!cursor) return;
+    try {
+      const res = await fetch(
+        `/api/chat/${roomId}?limit=50&before=${encodeURIComponent(cursor)}`,
+      );
+      if (!res.ok) return;
+      const body = await res.json();
+      const olderArray: ApiMessage[] = Array.isArray(body)
+        ? body
+        : body.messages ?? [];
+      const older = olderArray.map(normalizeApiMessage);
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [roomId]: [...older, ...(state.messages[roomId] || [])],
+        },
+        oldestCursor: {
+          ...state.oldestCursor,
+          [roomId]: older[0]?.createdAt ?? state.oldestCursor[roomId],
+        },
+        hasMore: { ...state.hasMore, [roomId]: older.length >= 50 },
+      }));
+    } catch {
+      /* ignore */
+    }
+  },
+
+  pollPresence: async (roomId) => {
+    try {
+      // Heartbeat keeps us in the online set.
+      void fetch(`/api/chat/${roomId}/heartbeat`, { method: "POST" }).catch(
+        () => {},
+      );
+
+      const res = await fetch(`/api/chat/${roomId}/presence`);
+      if (!res.ok) return;
+      const data = (await res.json()) as ChatPresenceData;
+      set((state) => ({
+        presence: { ...state.presence, [roomId]: data },
+      }));
+    } catch {
+      /* ignore */
+    }
+  },
 }));

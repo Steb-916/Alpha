@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { serializeSignal } from "@/lib/signals/serializer";
 
 // GET /api/analysts/[slug] — public analyst profile
 export async function GET(
@@ -19,23 +20,27 @@ export async function GET(
       return NextResponse.json({ error: "Analyst not found" }, { status: 404 });
     }
 
-    // Get recent signals
+    // Get recent signals (excluding drafts — drafts are private to the analyst).
+    // Phase 4: include the targets relation so the serializer can return
+    // a uniform multi-target shape (synthesizing TP1 for legacy single-target).
     const signals = await prisma.signal.findMany({
-      where: { analystId: user.id },
+      where: {
+        analystId: user.id,
+        status: { not: "draft" },
+      },
+      include: { targets: { orderBy: { order: "asc" } } },
       orderBy: { publishedAt: "desc" },
       take: 20,
     });
 
-    const serializedSignals = signals.map((s) => ({
-      ...s,
-      entryPrice: Number(s.entryPrice),
-      targetPrice: Number(s.targetPrice),
-      stopLossPrice: Number(s.stopLossPrice),
-      resolvedPrice: s.resolvedPrice ? Number(s.resolvedPrice) : null,
-      resultPnlPercent: s.resultPnlPercent ? Number(s.resultPnlPercent) : null,
-    }));
+    const serializedSignals = signals.map(serializeSignal);
 
     const perf = user.analystPerformance;
+
+    // Phase 6: include follower count.
+    const followerCount = await prisma.follow.count({
+      where: { analystId: user.id },
+    });
 
     return NextResponse.json({
       id: user.id,
@@ -67,9 +72,15 @@ export async function GET(
             totalPnlPercent: perf.totalPnlPercent ? Number(perf.totalPnlPercent) : null,
             subscriberCount: perf.subscriberCount,
             avgRating: perf.avgRating ? Number(perf.avgRating) : null,
+            // Phase 4: drawdown fields
+            maxDrawdownPct: perf.maxDrawdownPct ?? null,
+            currentDrawdownPct: perf.currentDrawdownPct ?? null,
+            maxDrawdownDate: perf.maxDrawdownDate ? perf.maxDrawdownDate.toISOString() : null,
           }
         : null,
       signals: serializedSignals,
+      // Phase 6
+      followerCount,
     });
   } catch (error) {
     console.error("Analyst profile error:", error);

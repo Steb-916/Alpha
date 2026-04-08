@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ensureRateLimit } from "@/lib/rateLimit";
+import { captureRouteError } from "@/lib/sentry";
 
 // PATCH /api/subscriptions/[id] — cancel subscription
 export async function PATCH(
@@ -12,6 +14,9 @@ export async function PATCH(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await ensureRateLimit("subscriptions/cancel", request, session.user.id);
+  if (limited) return limited;
 
   try {
     const body = await request.json();
@@ -43,7 +48,7 @@ export async function PATCH(
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (error) {
-    console.error("Update subscription error:", error);
+    captureRouteError(error, { route: "/api/subscriptions/[id] PATCH", userId: session.user.id });
     return NextResponse.json(
       { error: "Failed to update subscription" },
       { status: 500 }

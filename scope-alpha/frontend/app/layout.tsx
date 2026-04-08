@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import { MeshBackground } from "@/components/layout/MeshBackground";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { TosAcceptanceModal } from "@/components/legal/TosAcceptanceModal";
+import { AnalystAgreementModal } from "@/components/legal/AnalystAgreementModal";
 import "./globals.css";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" });
@@ -31,6 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MeshBackground />
         <AuthProvider>
           {children}
+          {/* Phase 7: gating modals — render only when authenticated and not yet accepted. */}
+          <TosAcceptanceModal />
+          <AnalystAgreementModal />
         </AuthProvider>
       </body>
     </html>

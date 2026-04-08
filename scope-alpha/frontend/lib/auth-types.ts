@@ -11,6 +11,9 @@ declare module "next-auth" {
       image?: string | null;
       role: string;
       slug?: string | null;
+      // Phase 7: surface acceptance state to the client so modals can mount.
+      tosAcceptedAt?: string | null;
+      analystAgreementAcceptedAt?: string | null;
     };
   }
 }
@@ -21,5 +24,9 @@ declare module "next-auth/jwt" {
     role: string;
     slug?: string | null;
     displayName?: string | null;
+    // Phase 7
+    jti?: string;
+    tosAcceptedAt?: string | null;
+    analystAgreementAcceptedAt?: string | null;
   }
 }

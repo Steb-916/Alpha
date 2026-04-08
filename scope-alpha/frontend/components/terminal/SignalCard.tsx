@@ -3,18 +3,37 @@
 import { Badge } from "@/components/ui/Badge";
 import type { Signal } from "@/lib/signals";
 import { getSignalStatusLabel, getConvictionColor } from "@/lib/signals";
+import { TakeSignalButton } from "@/components/signals/TakeSignalButton";
+import { LikeButton } from "@/components/social/LikeButton";
+import { BookmarkButton } from "@/components/social/BookmarkButton";
+import { ShareButton } from "@/components/social/ShareButton";
+import { SignalDisclaimer } from "@/components/legal/SignalDisclaimer";
 
 interface SignalCardProps {
   signal: Signal;
   onCancel?: (id: string) => void;
+  onResolve?: (signal: Signal) => void;
   compact?: boolean;
+  // Phase 5: when true and the signal is active, render a Take Signal button
+  // for non-owner subscribers. Defaults to false so analyst-side views are
+  // unchanged.
+  showTakeSignal?: boolean;
 }
 
-export function SignalCard({ signal, onCancel, compact }: SignalCardProps) {
+export function SignalCard({ signal, onCancel, onResolve, compact, showTakeSignal }: SignalCardProps) {
   const isLong = signal.direction === "long";
-  const isResolved = signal.status === "target_hit" || signal.status === "stopped_out";
-  const isWin = signal.status === "target_hit";
+  // Phase 4: 'resolved' joins target_hit/stopped_out as a "resolved" state.
+  // Win/loss is determined by sign of resultPnlPercent for the new path.
+  const isResolved =
+    signal.status === "target_hit" ||
+    signal.status === "stopped_out" ||
+    signal.status === "resolved";
+  const isWin =
+    signal.status === "target_hit" ||
+    (signal.status === "resolved" && (signal.resultPnlPercent ?? 0) > 0);
   const pnl = signal.resultPnlPercent;
+  // Phase 4: a real multi-target signal has more than one target row.
+  const hasMultiTargets = Array.isArray(signal.targets) && signal.targets.length > 1;
 
   const statusVariant =
     signal.status === "active"
@@ -111,32 +130,86 @@ export function SignalCard({ signal, onCancel, compact }: SignalCardProps) {
       </div>
 
       {/* Prices */}
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <div>
-          <span className="text-[10px] font-body block" style={{ color: "var(--text-tertiary)" }}>
-            Entry
-          </span>
-          <span className="text-xs font-mono font-bold" style={{ color: "var(--text-primary)" }}>
-            ${signal.entryPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          </span>
+      {hasMultiTargets ? (
+        <div className="mb-2">
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div>
+              <span className="text-[10px] font-body block" style={{ color: "var(--text-tertiary)" }}>
+                Entry
+              </span>
+              <span className="text-xs font-mono font-bold" style={{ color: "var(--text-primary)" }}>
+                ${signal.entryPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] font-body block" style={{ color: "var(--accent-red)" }}>
+                Stop
+              </span>
+              <span className="text-xs font-mono font-bold" style={{ color: "var(--accent-red)" }}>
+                ${signal.stopLossPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            {signal.targets!.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between px-2 py-1 rounded-[var(--radius-sm)]"
+                style={{
+                  background: t.hitAt ? "rgba(16, 185, 129, 0.12)" : "var(--glass-bg)",
+                  border: "1px solid var(--glass-border)",
+                }}
+              >
+                <span
+                  className="text-[10px] font-mono font-bold"
+                  style={{ color: t.hitAt ? "#10B981" : "var(--accent-green)" }}
+                >
+                  {t.label}
+                </span>
+                <span
+                  className="text-xs font-mono font-bold flex-1 text-center"
+                  style={{ color: t.hitAt ? "#10B981" : "var(--accent-green)" }}
+                >
+                  ${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </span>
+                <span
+                  className="text-[10px] font-mono"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {t.closePercent}%
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div>
-          <span className="text-[10px] font-body block" style={{ color: "var(--accent-green)" }}>
-            Target
-          </span>
-          <span className="text-xs font-mono font-bold" style={{ color: "var(--accent-green)" }}>
-            ${signal.targetPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          </span>
+      ) : (
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div>
+            <span className="text-[10px] font-body block" style={{ color: "var(--text-tertiary)" }}>
+              Entry
+            </span>
+            <span className="text-xs font-mono font-bold" style={{ color: "var(--text-primary)" }}>
+              ${signal.entryPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-body block" style={{ color: "var(--accent-green)" }}>
+              Target
+            </span>
+            <span className="text-xs font-mono font-bold" style={{ color: "var(--accent-green)" }}>
+              ${signal.targetPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-body block" style={{ color: "var(--accent-red)" }}>
+              Stop
+            </span>
+            <span className="text-xs font-mono font-bold" style={{ color: "var(--accent-red)" }}>
+              ${signal.stopLossPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          </div>
         </div>
-        <div>
-          <span className="text-[10px] font-body block" style={{ color: "var(--accent-red)" }}>
-            Stop
-          </span>
-          <span className="text-xs font-mono font-bold" style={{ color: "var(--accent-red)" }}>
-            ${signal.stopLossPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* P&L (if resolved) */}
       {pnl !== null && (
@@ -169,18 +242,47 @@ export function SignalCard({ signal, onCancel, compact }: SignalCardProps) {
           {new Date(signal.publishedAt).toLocaleDateString()}{" "}
           {new Date(signal.publishedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
         </span>
-        {signal.status === "active" && onCancel && (
-          <button
-            onClick={() => onCancel(signal.id)}
-            className="text-[10px] font-body cursor-pointer"
-            style={{ color: "var(--text-muted)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-red)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
-          >
-            Cancel Signal
-          </button>
-        )}
+        <div className="flex items-center gap-3 relative">
+          {/* Phase 6 social actions */}
+          {signal.status !== "draft" && (
+            <>
+              <LikeButton signalId={signal.id} />
+              <BookmarkButton signalId={signal.id} />
+              <ShareButton
+                signalId={signal.id}
+                asset={signal.assetSymbol}
+                direction={signal.direction}
+              />
+            </>
+          )}
+          {signal.status === "active" && onResolve && (
+            <button
+              onClick={() => onResolve(signal)}
+              className="text-[10px] font-body cursor-pointer"
+              style={{ color: "var(--accent-green)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+            >
+              Resolve
+            </button>
+          )}
+          {signal.status === "active" && onCancel && (
+            <button
+              onClick={() => onCancel(signal.id)}
+              className="text-[10px] font-body cursor-pointer"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent-red)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
+            >
+              Cancel
+            </button>
+          )}
+          {showTakeSignal && <TakeSignalButton signal={signal} />}
+        </div>
       </div>
+
+      {/* Phase 7: not-financial-advice disclaimer */}
+      <SignalDisclaimer />
     </div>
   );
 }

@@ -12,6 +12,14 @@ import { ReviewsSection, generateMockReviews } from "@/components/analyst/Review
 import { calculatePerformance, generateMockSignals } from "@/lib/performanceCalc";
 import { getSignalStatusLabel } from "@/lib/signals";
 import type { Signal } from "@/lib/signals";
+// Phase 4: analytics widgets
+import Link from "next/link";
+import { DrawdownChart } from "@/components/analytics/DrawdownChart";
+import { RollingWindowCards } from "@/components/analytics/RollingWindowCards";
+import { BreakdownTable } from "@/components/analytics/BreakdownTable";
+import { calculateDrawdown } from "@/lib/analytics/drawdown";
+// Phase 6: follow button
+import { FollowButton } from "@/components/social/FollowButton";
 
 // Mock analysts for demo (will be replaced by API)
 const MOCK_ANALYSTS: Record<
@@ -69,11 +77,19 @@ export default function AnalystProfilePage() {
   const analyst = MOCK_ANALYSTS[slug];
 
   // Generate mock signals and compute performance
-  const { signals, metrics } = useMemo(() => {
-    if (!analyst) return { signals: [] as Signal[], metrics: null };
+  const { signals, metrics, drawdown } = useMemo(() => {
+    if (!analyst) return { signals: [] as Signal[], metrics: null, drawdown: null };
     const sigs = generateMockSignals(slug);
     const perf = calculatePerformance(sigs);
-    return { signals: sigs, metrics: perf };
+    // Phase 4: drawdown computed locally on mock data so the chart works
+    // even on demo analyst pages that aren't backed by the DB.
+    const dd = calculateDrawdown(
+      sigs.map((s) => ({
+        resultPnlPercent: s.resultPnlPercent,
+        resolvedAt: s.resolvedAt,
+      })),
+    );
+    return { signals: sigs, metrics: perf, drawdown: dd };
   }, [slug, analyst]);
 
   if (!analyst) {
@@ -171,9 +187,15 @@ export default function AnalystProfilePage() {
                     {analyst.tagline}
                   </p>
                 </div>
-                <GlassButton variant="primary" size="md" onClick={() => {}}>
-                  Subscribe — ${analyst.price}/mo
-                </GlassButton>
+                <div className="flex items-center gap-2">
+                  {/* Phase 6 follow button — uses slug as analystId for demo
+                      mock pages; on real DB-backed analyst pages the slug
+                      resolves to the correct user ID via the API. */}
+                  <FollowButton analystId={slug} />
+                  <GlassButton variant="primary" size="md" onClick={() => {}}>
+                    Subscribe — ${analyst.price}/mo
+                  </GlassButton>
+                </div>
               </div>
 
               <p className="text-xs font-body mt-3 leading-relaxed" style={{ color: "var(--text-muted)" }}>
@@ -232,15 +254,27 @@ export default function AnalystProfilePage() {
           </div>
         </GlassCard>
 
+        {/* ===== PHASE 4: ROLLING WINDOWS ===== */}
+        <RollingWindowCards slug={slug} />
+
         {/* ===== PERFORMANCE METRICS ===== */}
         {metrics && (
           <GlassCard>
-            <h2
-              className="text-sm font-bold font-display mb-3"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Performance
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2
+                className="text-sm font-bold font-display"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Performance
+              </h2>
+              <Link
+                href={`/analyst/${slug}/journal`}
+                className="text-[10px] font-body cursor-pointer"
+                style={{ color: "var(--accent-green)" }}
+              >
+                View trade journal →
+              </Link>
+            </div>
             <PerformanceMetricsGrid metrics={metrics} />
           </GlassCard>
         )}
@@ -253,6 +287,17 @@ export default function AnalystProfilePage() {
           </div>
         )}
 
+        {/* ===== PHASE 4: DRAWDOWN ===== */}
+        {drawdown && drawdown.drawdownSeries.length > 0 && (
+          <DrawdownChart
+            data={drawdown.drawdownSeries}
+            maxDrawdownPct={drawdown.maxDrawdownPct}
+          />
+        )}
+
+        {/* ===== PHASE 4: BREAKDOWN ===== */}
+        <BreakdownTable slug={slug} />
+
         {/* ===== ACTIVE SIGNALS ===== */}
         {activeSignals.length > 0 && (
           <GlassCard>
@@ -264,7 +309,7 @@ export default function AnalystProfilePage() {
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {activeSignals.map((sig) => (
-                <SignalCard key={sig.id} signal={sig} />
+                <SignalCard key={sig.id} signal={sig} showTakeSignal />
               ))}
             </div>
           </GlassCard>
@@ -285,7 +330,7 @@ export default function AnalystProfilePage() {
           ) : (
             <div className="space-y-2">
               {recentResolved.map((sig) => (
-                <SignalCard key={sig.id} signal={sig} compact />
+                <SignalCard key={sig.id} signal={sig} compact showTakeSignal />
               ))}
             </div>
           )}
