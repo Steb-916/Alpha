@@ -3,7 +3,8 @@
   "crons": [
     {
       "path": "/api/cron/refresh-screener",
-      "schedule": "* * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
+
