@@ -13,6 +13,7 @@
  *   - Candles: exchange-provided candle open time
  */
 
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { log } from '@/lib/logger';
 
@@ -156,6 +157,161 @@ export interface HealthSnapshotInput {
   basis: number;
   /** Will be floored to the hour internally */
   timestamp: Date;
+}
+
+// ─── Phase 3: Options / volatility snapshots ──────────────────────────────
+
+export interface OptionsChainSnapshotInput {
+  asset: string;
+  instrumentName: string;
+  strike: number;
+  expiration: Date;
+  optionType: 'call' | 'put';
+  markPrice: number;
+  markIV: number;
+  bidIV: number | null;
+  askIV: number | null;
+  underlyingPrice: number;
+  openInterest: number;
+  volume24h: number;
+  delta: number | null;
+  gamma: number | null;
+  vega: number | null;
+  theta: number | null;
+  timestamp: Date;
+}
+
+/**
+ * Bulk-persist options chain rows. Idempotent via
+ * @@unique(asset, instrumentName, timestamp). Uses createMany with
+ * skipDuplicates so a re-run in the same hour is a harmless no-op.
+ */
+export async function persistOptionsChainSnapshot(
+  entries: OptionsChainSnapshotInput[],
+): Promise<number> {
+  if (entries.length === 0) return 0;
+  try {
+    const result = await prisma.optionsChainSnapshot.createMany({
+      data: entries.map((e) => ({
+        asset: e.asset,
+        instrumentName: e.instrumentName,
+        strike: e.strike,
+        expiration: e.expiration,
+        optionType: e.optionType,
+        markPrice: e.markPrice,
+        markIV: e.markIV,
+        bidIV: e.bidIV,
+        askIV: e.askIV,
+        underlyingPrice: e.underlyingPrice,
+        openInterest: e.openInterest,
+        volume24h: e.volume24h,
+        delta: e.delta,
+        gamma: e.gamma,
+        vega: e.vega,
+        theta: e.theta,
+        timestamp: floorToHour(e.timestamp),
+      })),
+      skipDuplicates: true,
+    });
+    return result.count;
+  } catch (err) {
+    log('warn', 'persistOptionsChainSnapshot failed', {
+      metadata: {
+        count: entries.length,
+        error: (err as Error).message,
+      },
+    });
+    return 0;
+  }
+}
+
+export interface VolSurfaceSnapshotInput {
+  asset: string;
+  surfaceData: unknown; // Array of {strike, expiry, fittedIV, delta} — stored as JSON
+  atmIV30d: number | null;
+  atmIV90d: number | null;
+  skew25d30d: number | null;
+  timestamp: Date;
+}
+
+export async function persistVolSurfaceSnapshot(
+  input: VolSurfaceSnapshotInput,
+): Promise<void> {
+  try {
+    const ts = floorToHour(input.timestamp);
+    await prisma.volSurfaceSnapshot.upsert({
+      where: { asset_timestamp: { asset: input.asset, timestamp: ts } },
+      create: {
+        asset: input.asset,
+        surfaceData: input.surfaceData as Prisma.InputJsonValue,
+        atmIV30d: input.atmIV30d,
+        atmIV90d: input.atmIV90d,
+        skew25d30d: input.skew25d30d,
+        timestamp: ts,
+      },
+      update: {
+        surfaceData: input.surfaceData as Prisma.InputJsonValue,
+        atmIV30d: input.atmIV30d,
+        atmIV90d: input.atmIV90d,
+        skew25d30d: input.skew25d30d,
+      },
+    });
+  } catch (err) {
+    log('warn', 'persistVolSurfaceSnapshot failed', {
+      metadata: { asset: input.asset, error: (err as Error).message },
+    });
+  }
+}
+
+export interface IVSnapshotInput {
+  asset: string;
+  iv7d: number | null;
+  iv30d: number | null;
+  iv60d: number | null;
+  iv90d: number | null;
+  iv180d: number | null;
+  skew25d7d: number | null;
+  skew25d30d: number | null;
+  skew25d90d: number | null;
+  spotPrice: number;
+  timestamp: Date;
+}
+
+export async function persistIVSnapshot(input: IVSnapshotInput): Promise<void> {
+  try {
+    const ts = floorToHour(input.timestamp);
+    await prisma.iVSnapshot.upsert({
+      where: { asset_timestamp: { asset: input.asset, timestamp: ts } },
+      create: {
+        asset: input.asset,
+        iv7d: input.iv7d,
+        iv30d: input.iv30d,
+        iv60d: input.iv60d,
+        iv90d: input.iv90d,
+        iv180d: input.iv180d,
+        skew25d7d: input.skew25d7d,
+        skew25d30d: input.skew25d30d,
+        skew25d90d: input.skew25d90d,
+        spotPrice: input.spotPrice,
+        timestamp: ts,
+      },
+      update: {
+        iv7d: input.iv7d,
+        iv30d: input.iv30d,
+        iv60d: input.iv60d,
+        iv90d: input.iv90d,
+        iv180d: input.iv180d,
+        skew25d7d: input.skew25d7d,
+        skew25d30d: input.skew25d30d,
+        skew25d90d: input.skew25d90d,
+        spotPrice: input.spotPrice,
+      },
+    });
+  } catch (err) {
+    log('warn', 'persistIVSnapshot failed', {
+      metadata: { asset: input.asset, error: (err as Error).message },
+    });
+  }
 }
 
 export async function persistHealthScoreSnapshot(

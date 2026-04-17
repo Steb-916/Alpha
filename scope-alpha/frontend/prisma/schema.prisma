@@ -244,3 +244,74 @@ model HealthScoreSnapshot {
   @@unique([asset, timestamp])
   @@index([asset, timestamp])
 }
+
+// ─── Phase 3: Options + volatility snapshots ──────────────────────────────
+
+/// One row per option instrument per snapshot cycle. Hourly granularity.
+model OptionsChainSnapshot {
+  id              String   @id @default(cuid())
+  asset           String                 // "BTC" or "ETH"
+  instrumentName  String                 // "BTC-28MAR26-90000-C"
+  strike          Float
+  expiration      DateTime
+  optionType      String                 // "call" or "put"
+
+  markPrice       Float                  // In USD (converted from native)
+  markIV          Float                  // Annualized %, Deribit scale (0-500)
+  bidIV           Float?
+  askIV           Float?
+  underlyingPrice Float
+
+  openInterest    Float
+  volume24h       Float
+
+  delta           Float?
+  gamma           Float?
+  vega            Float?
+  theta           Float?
+
+  timestamp       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([asset, instrumentName, timestamp])
+  @@index([asset, timestamp])
+  @@index([asset, expiration, timestamp])
+  @@index([asset, strike, optionType, timestamp])
+}
+
+/// Computed vol surface output from the Quant Engine.
+model VolSurfaceSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+  surfaceData Json                       // Array of {strike, expiry, fittedIV, delta}
+  atmIV30d    Float?
+  atmIV90d    Float?
+  skew25d30d  Float?
+
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}
+
+/// Historical IV snapshots for term structure, VRP tracking, and screener.
+model IVSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+  iv7d        Float?
+  iv30d       Float?
+  iv60d       Float?
+  iv90d       Float?
+  iv180d      Float?
+  skew25d7d   Float?
+  skew25d30d  Float?
+  skew25d90d  Float?
+  spotPrice   Float
+
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}

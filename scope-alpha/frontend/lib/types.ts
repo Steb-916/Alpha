@@ -135,6 +135,10 @@ export interface ScreenerRow extends MarketSnapshot {
   regimeV2?: string;
   cvdTrend?: "bullish" | "bearish" | "neutral";
   arbYield?: number;
+  /** Phase 3 additions (BTC and ETH only — options data) */
+  atmIV30d?: number;
+  skew25d?: number;
+  volRegime?: "low" | "normal" | "high" | "extreme";
 }
 
 export type TimeFrame = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";

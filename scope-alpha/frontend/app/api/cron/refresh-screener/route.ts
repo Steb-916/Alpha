@@ -187,6 +187,41 @@ async function buildRow(asset: AssetConfig): Promise<{
     timestamp: new Date(),
   });
 
+  // Phase 3: for BTC/ETH, attach IV + skew + VRP context for vol-based alerts
+  // and the new screener columns. Reads from the Redis caches populated by
+  // refresh-options. Undefined for other assets (no options data).
+  let iv30d: number | undefined;
+  let skew25d: number | undefined;
+  let vrp: number | undefined;
+  let volRegime: 'low' | 'normal' | 'high' | 'extreme' | undefined;
+  if (asset.symbol === 'BTC' || asset.symbol === 'ETH') {
+    type IVCache = {
+      iv30d: number | null;
+      skew25d30d: number | null;
+    };
+    const ivSnap = await getCached<IVCache>(
+      `options:ivsnap:${asset.symbol}`,
+    );
+    if (ivSnap?.iv30d != null) iv30d = ivSnap.iv30d;
+    if (ivSnap?.skew25d30d != null) skew25d = ivSnap.skew25d30d;
+
+    type VRPCache = { current_vrp: number };
+    const vrpCache = await getCached<VRPCache>(`options:vrp:${asset.symbol}`);
+    if (vrpCache?.current_vrp != null) vrp = vrpCache.current_vrp;
+
+    type VolConeCache = { current_atm_iv: number; iv_percentile_vs_rv30d: number };
+    const coneCache = await getCached<VolConeCache>(
+      `options:vol-cone:${asset.symbol}`,
+    );
+    if (coneCache?.iv_percentile_vs_rv30d != null) {
+      const pct = coneCache.iv_percentile_vs_rv30d;
+      if (pct < 25) volRegime = 'low';
+      else if (pct < 60) volRegime = 'normal';
+      else if (pct < 85) volRegime = 'high';
+      else volRegime = 'extreme';
+    }
+  }
+
   // Phase 2: evaluate configured alerts for this asset against fresh data.
   // Fire-and-forget so a slow DB read doesn't stall the cron.
   void runAlertsForAsset(asset.symbol, {
@@ -196,6 +231,9 @@ async function buildRow(asset: AssetConfig): Promise<{
     liquidation: liqSnap,
     health,
     ticker: ticker ? { lastPrice: ticker.lastPrice } : null,
+    iv30d,
+    skew25d,
+    vrp,
   });
 
   // Liquidation totals (24h) from the snapshot. If absent, leave as 0.
@@ -257,6 +295,9 @@ async function buildRow(asset: AssetConfig): Promise<{
     regimeV2: health.regimeV2,
     cvdTrend,
     arbYield,
+    atmIV30d: iv30d,
+    skew25d,
+    volRegime,
   };
 
   return { row };

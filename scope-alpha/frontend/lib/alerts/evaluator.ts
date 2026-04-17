@@ -33,6 +33,12 @@ export interface EvalContext {
   arbYield?: number;
   /** Whether a CVD divergence is currently active for this asset. */
   cvdDivergenceActive?: boolean;
+  /** Phase 3: ATM 30d IV (only populated for BTC/ETH). */
+  iv30d?: number;
+  /** Phase 3: 25-delta skew at 30d (only populated for BTC/ETH). */
+  skew25d?: number;
+  /** Phase 3: Current VRP (IV − RV) in % (only populated for BTC/ETH). */
+  vrp?: number;
 }
 
 export interface EvalResult {
@@ -63,6 +69,13 @@ function readActualValue(
       return ctx.arbYield ?? null;
     case 'cvd_divergence':
       return ctx.cvdDivergenceActive ? 1 : 0;
+    case 'iv_above':
+    case 'iv_below':
+      return ctx.iv30d ?? null;
+    case 'skew_extreme':
+      return ctx.skew25d ?? null;
+    case 'vrp_extreme':
+      return ctx.vrp ?? null;
     default:
       return null;
   }
@@ -119,6 +132,17 @@ export async function evaluateAlert(
   // cvd_divergence special case: fire on any divergence regardless of
   // numeric condition (the event itself is the trigger).
   if (alert.type === 'cvd_divergence' && ctx.cvdDivergenceActive) {
+    triggered = true;
+  }
+
+  // skew_extreme / vrp_extreme: fire when absolute magnitude exceeds
+  // `alert.value`. Directional interpretation (is skew putskew or callskew?)
+  // is left to the user — they can create separate alerts for each sign if
+  // they care, or use this single-shot magnitude alert.
+  if (
+    (alert.type === 'skew_extreme' || alert.type === 'vrp_extreme') &&
+    Math.abs(actualValue) > alert.value
+  ) {
     triggered = true;
   }
 

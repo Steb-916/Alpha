@@ -17,6 +17,10 @@ const ALERT_TYPES = [
   "cvd_divergence",
   "health_score",
   "arb_yield",
+  "iv_above",
+  "iv_below",
+  "skew_extreme",
+  "vrp_extreme",
 ] as const;
 const CONDITIONS = [
   "above",

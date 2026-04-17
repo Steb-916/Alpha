@@ -27,7 +27,7 @@ export const TERMINAL_NAV: NavItem[] = [
     label: "Volatility",
     path: "/terminal/volatility",
     icon: "Activity",
-    enabled: false,
+    enabled: true,
     description:
       "Implied volatility surface, risk-neutral density, skew analysis, volatility cone, volatility risk premium, and Greeks exposure maps.",
     phase: 3,

@@ -32,7 +32,7 @@ function Sparkline({ data, color, width = 80, height = 24 }: { data: number[]; c
   );
 }
 
-type SortKey = "symbol" | "price" | "fundingRate" | "fundingZ" | "oi" | "oiChange24h" | "liq24h" | "liqRatio" | "basis" | "healthScore" | "regime" | "arbYield" | "cvdTrend";
+type SortKey = "symbol" | "price" | "fundingRate" | "fundingZ" | "oi" | "oiChange24h" | "liq24h" | "liqRatio" | "basis" | "healthScore" | "regime" | "arbYield" | "cvdTrend" | "atmIV30d" | "skew25d";
 type SortDir = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string; align: "left" | "right" | "center" }[] = [
@@ -49,6 +49,8 @@ const COLUMNS: { key: SortKey; label: string; align: "left" | "right" | "center"
   { key: "regime", label: "Regime", align: "center" },
   { key: "cvdTrend", label: "CVD", align: "center" },
   { key: "arbYield", label: "Arb Yield", align: "right" },
+  { key: "atmIV30d", label: "IV 30d", align: "right" },
+  { key: "skew25d", label: "Skew", align: "right" },
 ];
 
 export function ScreenerView() {
@@ -219,6 +221,24 @@ export function ScreenerView() {
                       {row.arbYield != null ? (
                         <span style={{ color: row.arbYield > 1 ? "var(--accent-green)" : "var(--text-secondary)" }}>
                           {formatPercent(row.arbYield, true)}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)" }}>—</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      {row.atmIV30d != null ? (
+                        <span style={{ color: "var(--accent-green)" }}>
+                          {row.atmIV30d.toFixed(1)}%
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)" }}>—</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      {row.skew25d != null ? (
+                        <span style={{ color: row.skew25d < -3 ? "var(--data-red)" : row.skew25d > 3 ? "var(--data-green)" : "var(--text-secondary)" }}>
+                          {row.skew25d.toFixed(2)}
                         </span>
                       ) : (
                         <span style={{ color: "var(--text-muted)" }}>—</span>
