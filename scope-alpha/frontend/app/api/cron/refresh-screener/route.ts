@@ -56,9 +56,13 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const SCREENER_KEY = 'market:screener';
-const SCREENER_TTL = 90;
-const SPARKLINE_TTL = 300;
-const PER_METRIC_TTL = 60;
+// Vercel Hobby only permits daily crons, so TTLs span >24h to keep the
+// screener + sparkline + per-metric warm caches alive between daily runs.
+// On Pro, these can be shortened back to the original 60-90s values for
+// fresher data; the withCacheAndStale wrapper tolerates either cadence.
+const SCREENER_TTL = 25 * 60 * 60; // 25 hours
+const SPARKLINE_TTL = 25 * 60 * 60; // 25 hours
+const PER_METRIC_TTL = 25 * 60 * 60; // 25 hours
 
 const binance = new BinanceConnector();
 

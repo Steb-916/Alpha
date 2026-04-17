@@ -52,7 +52,12 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const ASSETS: DeribitCurrency[] = ['BTC', 'ETH'];
-const CACHE_TTL = 3600; // 1 hour, matches cron cadence
+// Vercel Hobby plans only support daily crons, so the cache TTL is set
+// slightly longer than the daily cron interval (25h) to ensure the cache
+// never blanks between runs. Pro plans can reduce both cron frequency and
+// this TTL if fresher data is wanted; all routes read cache + stale so
+// lowering this is safe.
+const CACHE_TTL = 25 * 60 * 60; // 25 hours
 
 const deribit = new DeribitConnector();
 
