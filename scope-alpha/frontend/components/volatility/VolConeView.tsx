@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useVolCone } from "@/hooks/useVolCone";
 import { UnavailableBanner } from "./UnavailableBanner";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { VOL_CONE_STAGES } from "@/lib/options/loading-stages";
 
 const WIDTH = 800;
 const HEIGHT = 260;
@@ -16,6 +21,7 @@ interface VolConeViewProps {
 
 export function VolConeView({ asset }: VolConeViewProps) {
   const { data, isLoading, unavailable, quantEngineConfigured } = useVolCone(asset);
+  const showLoader = useDelayedLoadingSignal(isLoading);
 
   const chart = useMemo(() => {
     if (!data) return null;
@@ -42,12 +48,10 @@ export function VolConeView({ asset }: VolConeViewProps) {
   }, [data]);
 
   if (isLoading) {
-    return (
-      <GlassCard>
-        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-          Loading…
-        </p>
-      </GlassCard>
+    return showLoader ? (
+      <ComputeLoader stages={VOL_CONE_STAGES} title="Computing vol cone" />
+    ) : (
+      <div className="h-full" />
     );
   }
   if (unavailable || !data || !chart) {

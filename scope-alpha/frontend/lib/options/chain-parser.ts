@@ -18,6 +18,7 @@ import type {
   DeribitBookSummary,
   OptionsChainEntry,
 } from '@/lib/exchanges/deribit-types';
+import { blackScholesGreeks } from './greeks';
 
 const MONTHS: Record<string, number> = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
@@ -93,6 +94,22 @@ export function parseBookSummaries(
     const underlyingUsd = s.underlying_price ?? 0;
     const markUsd = (s.mark_price ?? 0) * underlyingUsd;
 
+    // Greeks: Deribit's bulk book-summary endpoint doesn't include them
+    // (only the per-instrument ticker does), so we compute Black-Scholes
+    // Greeks analytically from the fields it does return — spot, strike,
+    // time-to-expiry, mark IV. Crypto options are European-style so the
+    // closed-form is exact.
+    const greeks =
+      underlyingUsd > 0 && daysToExpiry > 0
+        ? blackScholesGreeks({
+            spot: underlyingUsd,
+            strike: parsed.strike,
+            timeYears: daysToExpiry / 365,
+            sigma: s.mark_iv / 100,
+            optionType: parsed.optionType,
+          })
+        : null;
+
     entries.push({
       asset: parsed.asset,
       instrumentName: s.instrument_name,
@@ -107,10 +124,10 @@ export function parseBookSummaries(
       underlyingPrice: underlyingUsd,
       openInterest: s.open_interest ?? 0,
       volume24h: s.volume ?? 0,
-      delta: null,
-      gamma: null,
-      vega: null,
-      theta: null,
+      delta: greeks?.delta ?? null,
+      gamma: greeks?.gamma ?? null,
+      vega: greeks?.vega ?? null,
+      theta: greeks?.theta ?? null,
     });
   }
   return entries;

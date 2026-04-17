@@ -178,6 +178,159 @@ export interface SkewOutput {
   term_structure_shape: 'contango' | 'backwardation' | 'flat';
 }
 
+// ─── Phase 4 — Options Microstructure ──────────────────────────────────────
+//
+// GEX, DEX, vanna, and charm exposure maps. Computed in TypeScript directly
+// from the Deribit chain (Deribit provides delta/gamma/vega/theta per
+// instrument, so no Black-Scholes re-derivation is needed — we aggregate).
+//
+// Dealer-positioning assumption (crypto, not equity): dealers are assumed
+// to be net short ~40% of call OI and short ~60% of put OI. This is a
+// simplified heuristic documented in the Phase 4 PRD §1; a taker-flow
+// reconstruction would be more precise but needs per-trade data we don't
+// yet persist.
+
+export type GammaRegime = 'positive_gamma' | 'negative_gamma';
+export type DirectionalBias = 'long' | 'short' | 'slightly_long' | 'slightly_short' | 'neutral';
+export type Significance = 'low' | 'medium' | 'high';
+export type AnomalyType = 'volume_spike' | 'oi_surge' | 'large_premium' | 'unusual_ratio';
+export type AnomalySentiment = 'bullish' | 'bearish' | 'neutral';
+
+export interface GEXLevel {
+  strike: number;
+  gex_usd: number;
+  side: 'positive' | 'negative';
+}
+
+export interface GEXOutput {
+  asset: string;
+  spot_price: number;
+  levels: GEXLevel[];
+  gamma_flip: number;
+  total_gex: number;
+  regime: GammaRegime;
+  regime_description: string;
+  call_wall: number;
+  put_wall: number;
+  interpretation: {
+    above_spot: string;
+    below_spot: string;
+    regime_implications: string;
+  };
+  computed_at: string;
+}
+
+export interface DEXLevel {
+  strike: number;
+  dex_usd: number;
+  direction: 'long' | 'short';
+}
+
+export interface DEXOutput {
+  asset: string;
+  spot_price: number;
+  levels: DEXLevel[];
+  net_dex: number;
+  directional_bias: DirectionalBias;
+  interpretation: string;
+  computed_at: string;
+}
+
+export interface VannaLevel {
+  strike: number;
+  vanna_exposure: number;
+  iv_sensitivity: 'positive' | 'negative';
+}
+
+export interface CharmLevel {
+  strike: number;
+  charm_exposure: number;
+}
+
+export interface GreeksExposureOutput {
+  asset: string;
+  spot_price: number;
+  vanna: {
+    levels: VannaLevel[];
+    net_vanna: number;
+    interpretation: string;
+  };
+  charm: {
+    levels: CharmLevel[];
+    net_charm: number;
+    time_decay_bias: 'bullish' | 'bearish' | 'neutral';
+    interpretation: string;
+  };
+  computed_at: string;
+}
+
+export interface PinRiskOutput {
+  asset: string;
+  expiry_date: string;
+  days_to_expiry: number;
+  spot_price: number;
+  max_pain_strike: number;
+  current_distance_pct: number;
+  pin_probability: number;
+  oi_concentration: number;
+  risk_level: 'low' | 'moderate' | 'high';
+  assessment: string;
+  computed_at: string;
+}
+
+export interface FlowAnomaly {
+  instrument: string;
+  asset: string;
+  strike: number;
+  option_type: 'call' | 'put';
+  expiry_date: string;
+  days_to_expiry: number;
+
+  anomaly_type: AnomalyType;
+
+  volume_24h: number;
+  open_interest: number;
+  oi_change: number;
+  oi_change_pct: number;
+
+  volume_ratio: number;
+  premium_usd: number;
+
+  sentiment: AnomalySentiment;
+  significance: Significance;
+  description: string;
+}
+
+export interface FlowOutput {
+  asset: string;
+  spot_price: number;
+  anomalies: FlowAnomaly[];
+  summary: {
+    call_premium_usd: number;
+    put_premium_usd: number;
+    call_put_ratio: number;
+    bias: 'bullish' | 'bearish' | 'neutral';
+  };
+  computed_at: string;
+}
+
+export interface GEXHistoryPoint {
+  timestamp: string;
+  spot_price: number;
+  gamma_flip: number;
+  total_gex: number;
+  regime: GammaRegime;
+  call_wall: number;
+  put_wall: number;
+  levels: GEXLevel[];
+}
+
+export interface GEXHistoryOutput {
+  asset: string;
+  days: number;
+  points: GEXHistoryPoint[];
+}
+
 // ─── Re-exports for convenience ────────────────────────────────────────────
 
 export type { OptionsChainEntry };

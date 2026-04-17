@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useSkew } from "@/hooks/useSkew";
 import { UnavailableBanner } from "./UnavailableBanner";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { TERM_STAGES } from "@/lib/options/loading-stages";
 
 const WIDTH = 800;
 const HEIGHT = 220;
@@ -15,6 +20,7 @@ interface TermStructureViewProps {
 
 export function TermStructureView({ asset }: TermStructureViewProps) {
   const { data, isLoading, unavailable, quantEngineConfigured } = useSkew(asset);
+  const showLoader = useDelayedLoadingSignal(isLoading);
 
   const chart = useMemo(() => {
     if (!data) return null;
@@ -39,12 +45,10 @@ export function TermStructureView({ asset }: TermStructureViewProps) {
   }, [data]);
 
   if (isLoading) {
-    return (
-      <GlassCard>
-        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-          Loading…
-        </p>
-      </GlassCard>
+    return showLoader ? (
+      <ComputeLoader stages={TERM_STAGES} title="Building term structure" />
+    ) : (
+      <div className="h-full" />
     );
   }
   if (unavailable || !data || !chart) {

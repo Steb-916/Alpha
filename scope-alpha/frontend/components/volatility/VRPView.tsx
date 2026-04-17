@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useVRP } from "@/hooks/useVRP";
 import { UnavailableBanner } from "./UnavailableBanner";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { VRP_STAGES } from "@/lib/options/loading-stages";
 
 const WIDTH = 800;
 const HEIGHT = 220;
@@ -16,6 +21,7 @@ interface VRPViewProps {
 
 export function VRPView({ asset }: VRPViewProps) {
   const { data, isLoading, unavailable, quantEngineConfigured } = useVRP(asset);
+  const showLoader = useDelayedLoadingSignal(isLoading);
 
   const chart = useMemo(() => {
     if (!data || data.vrp_series.length === 0) return null;
@@ -38,12 +44,10 @@ export function VRPView({ asset }: VRPViewProps) {
   }, [data]);
 
   if (isLoading) {
-    return (
-      <GlassCard>
-        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-          Loading…
-        </p>
-      </GlassCard>
+    return showLoader ? (
+      <ComputeLoader stages={VRP_STAGES} title="Computing VRP" />
+    ) : (
+      <div className="h-full" />
     );
   }
   if (unavailable || !data || !chart) {

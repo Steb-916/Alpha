@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useVolSurface } from "@/hooks/useVolSurface";
 import { UnavailableBanner } from "./UnavailableBanner";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { VOL_SURFACE_STAGES } from "@/lib/options/loading-stages";
 
 interface VolSurfaceHeatmapProps {
   asset: string;
@@ -30,6 +35,7 @@ function ivColor(iv: number, min: number, max: number): string {
 export function VolSurfaceHeatmap({ asset }: VolSurfaceHeatmapProps) {
   const { data, isLoading, unavailable, quantEngineConfigured } =
     useVolSurface(asset);
+  const showLoader = useDelayedLoadingSignal(isLoading);
 
   const grid = useMemo(() => {
     if (!data) return null;
@@ -50,17 +56,13 @@ export function VolSurfaceHeatmap({ asset }: VolSurfaceHeatmapProps) {
   }, [data]);
 
   if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div
-          className="w-8 h-8 border-2 rounded-full"
-          style={{
-            borderColor: "var(--glass-border)",
-            borderTopColor: "var(--accent-green)",
-            animation: "spin 1s linear infinite",
-          }}
-        />
-      </div>
+    return showLoader ? (
+      <ComputeLoader
+        stages={VOL_SURFACE_STAGES}
+        title="Fitting vol surface"
+      />
+    ) : (
+      <div className="h-full" />
     );
   }
 

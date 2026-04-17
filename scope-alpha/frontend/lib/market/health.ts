@@ -79,6 +79,15 @@ export function scoreBasis(basis: BasisData | null | undefined): number {
 
 // ─── Composite ──────────────────────────────────────────────────────────────
 
+export interface OptionsRegimeInput {
+  /** Dealer gamma regime from GEX snapshot. */
+  gammaRegime?: 'positive_gamma' | 'negative_gamma';
+  /** 25-delta skew at 30d; negative = put-heavy. */
+  skew25d?: number;
+  /** IV percentile vs 30d realized-vol history (0–100). */
+  ivPercentile?: number;
+}
+
 export function computeHealthScore(args: {
   symbol: string;
   funding: FundingData | null;
@@ -87,16 +96,31 @@ export function computeHealthScore(args: {
   liquidation: LiqSnapshot | null;
   /** Phase 2: historical snapshots for this asset (last ~7d). Optional. */
   history?: SnapshotLite[];
+  /** Phase 4: options-positioning context (BTC/ETH only). Optional. */
+  options?: OptionsRegimeInput;
 }): HealthScore {
   const fundingScore = scoreFunding(args.funding);
   const oiScore = scoreOI(args.oi);
   const liqScore = scoreLiquidation(args.liquidation);
   const basisScore = scoreBasis(args.basis);
 
-  const score = Math.max(
-    0,
-    Math.min(100, fundingScore + oiScore + liqScore + basisScore),
-  );
+  let rawScore = fundingScore + oiScore + liqScore + basisScore;
+
+  // Phase 4: apply a small gamma-regime adjustment. Negative gamma amplifies
+  // moves — nudge the score away from whatever regime it's closest to, i.e.
+  // make Risk-On scores look a little more Risk-On (overheated) and Risk-Off
+  // scores a little more Risk-Off (extreme fear). Deliberately small
+  // (+/- 3 points) so it tilts the regime classifier without dominating it.
+  if (args.options?.gammaRegime === 'negative_gamma') {
+    if (rawScore >= 50) rawScore += 3;
+    else rawScore -= 3;
+  } else if (args.options?.gammaRegime === 'positive_gamma') {
+    // Positive gamma dampens — pull score toward neutral.
+    if (rawScore > 50) rawScore -= 1.5;
+    else if (rawScore < 50) rawScore += 1.5;
+  }
+
+  const score = Math.max(0, Math.min(100, rawScore));
 
   // Legacy 5-band label (backward compat).
   let regime: HealthScore['regime'];

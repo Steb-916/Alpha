@@ -39,6 +39,14 @@ export interface EvalContext {
   skew25d?: number;
   /** Phase 3: Current VRP (IV − RV) in % (only populated for BTC/ETH). */
   vrp?: number;
+  /** Phase 4: gamma flip price level from the latest GEX snapshot. */
+  gammaFlip?: number;
+  /** Phase 4: dealer gamma regime from the latest GEX snapshot. */
+  gammaRegime?: 'positive_gamma' | 'negative_gamma';
+  /** Phase 4: highest single-event anomaly score (0=none, 1=high, 0.5=medium). */
+  flowAnomalyScore?: number;
+  /** Phase 4: highest pin probability across active expirations (0–1). */
+  pinRiskMax?: number;
 }
 
 export interface EvalResult {
@@ -76,6 +84,21 @@ function readActualValue(
       return ctx.skew25d ?? null;
     case 'vrp_extreme':
       return ctx.vrp ?? null;
+    // Phase 4 — options microstructure
+    case 'gamma_flip_crossed':
+      // Used with crosses_above / crosses_below conditions against the
+      // gamma-flip level. The comparable stream here is the live price —
+      // alert.value is ignored and the stored previous-value logic uses
+      // price vs gammaFlip.
+      return ctx.ticker?.lastPrice ?? null;
+    case 'gex_regime_change':
+      // Binary: 1 = positive_gamma, 0 = negative_gamma, null if unknown.
+      if (ctx.gammaRegime == null) return null;
+      return ctx.gammaRegime === 'positive_gamma' ? 1 : 0;
+    case 'flow_anomaly':
+      return ctx.flowAnomalyScore ?? null;
+    case 'pin_risk_high':
+      return ctx.pinRiskMax ?? null;
     default:
       return null;
   }
@@ -132,6 +155,39 @@ export async function evaluateAlert(
   // cvd_divergence special case: fire on any divergence regardless of
   // numeric condition (the event itself is the trigger).
   if (alert.type === 'cvd_divergence' && ctx.cvdDivergenceActive) {
+    triggered = true;
+  }
+
+  // Phase 4: gamma_flip_crossed compares live price against the gamma flip
+  // level (from the GEX snapshot), not against alert.value. The condition
+  // field picks direction: crosses_above means price rose above the flip,
+  // crosses_below means price fell below it.
+  if (alert.type === 'gamma_flip_crossed' && ctx.gammaFlip != null) {
+    const prev = await getCached<number>(PREV_KEY(alert.id));
+    if (prev != null) {
+      if (alert.condition === 'crosses_above') {
+        triggered = prev <= ctx.gammaFlip && actualValue > ctx.gammaFlip;
+      } else if (alert.condition === 'crosses_below') {
+        triggered = prev >= ctx.gammaFlip && actualValue < ctx.gammaFlip;
+      }
+    }
+    await setCached(PREV_KEY(alert.id), actualValue, PREV_TTL);
+  }
+
+  // Phase 4: gex_regime_change fires when the regime flips sign. The
+  // stored "previous" value is the last regime read (0 or 1); any change
+  // triggers the alert.
+  if (alert.type === 'gex_regime_change') {
+    const prev = await getCached<number>(PREV_KEY(alert.id));
+    if (prev != null && prev !== actualValue) {
+      triggered = true;
+    }
+    await setCached(PREV_KEY(alert.id), actualValue, PREV_TTL);
+  }
+
+  // Phase 4: flow_anomaly — trigger when the latest scanner pass has an
+  // anomaly with score >= alert.value (high=1, medium=0.5).
+  if (alert.type === 'flow_anomaly' && actualValue >= alert.value) {
     triggered = true;
   }
 

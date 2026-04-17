@@ -212,6 +212,34 @@ async function buildRow(
     }
   }
 
+  // Phase 4 — pull GEX + flow + pin-risk context so the corresponding
+  // alert types can fire. BTC/ETH only, read-through cache only.
+  let gammaFlip: number | undefined;
+  let gammaRegime: 'positive_gamma' | 'negative_gamma' | undefined;
+  let flowAnomalyScore: number | undefined;
+  let pinRiskMax: number | undefined;
+  if (asset.symbol === 'BTC' || asset.symbol === 'ETH') {
+    type GEXCache = {
+      gamma_flip: number;
+      regime: 'positive_gamma' | 'negative_gamma';
+    };
+    const gexCache = await getCached<GEXCache>(`options:gex:${asset.symbol}`);
+    if (gexCache) {
+      gammaFlip = gexCache.gamma_flip;
+      gammaRegime = gexCache.regime;
+    }
+    type FlowCache = {
+      anomalies: Array<{ significance: 'low' | 'medium' | 'high' }>;
+    };
+    const flowCache = await getCached<FlowCache>(
+      `options:flow:${asset.symbol}`,
+    );
+    if (flowCache?.anomalies && flowCache.anomalies.length > 0) {
+      const topSig = flowCache.anomalies[0].significance;
+      flowAnomalyScore = topSig === 'high' ? 1 : topSig === 'medium' ? 0.5 : 0.2;
+    }
+  }
+
   if (!opts.skipAlerts) {
     void runAlertsForAsset(asset.symbol, {
       funding,
@@ -223,6 +251,10 @@ async function buildRow(
       iv30d,
       skew25d,
       vrp,
+      gammaFlip,
+      gammaRegime,
+      flowAnomalyScore,
+      pinRiskMax,
     });
   }
 

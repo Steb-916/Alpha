@@ -5,6 +5,11 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { useSkew } from "@/hooks/useSkew";
 import { UnavailableBanner } from "./UnavailableBanner";
 import { GlassPill } from "@/components/ui/GlassPill";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { SKEW_STAGES } from "@/lib/options/loading-stages";
 
 const WIDTH = 800;
 const HEIGHT = 200;
@@ -16,6 +21,7 @@ interface SkewViewProps {
 
 export function SkewView({ asset }: SkewViewProps) {
   const { data, isLoading, unavailable, quantEngineConfigured } = useSkew(asset);
+  const showLoader = useDelayedLoadingSignal(isLoading);
   const [expiryDays, setExpiryDays] = useState<number | null>(null);
 
   const items = useMemo(
@@ -68,12 +74,10 @@ export function SkewView({ asset }: SkewViewProps) {
   }, [data]);
 
   if (isLoading) {
-    return (
-      <GlassCard>
-        <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-          Loading…
-        </p>
-      </GlassCard>
+    return showLoader ? (
+      <ComputeLoader stages={SKEW_STAGES} title="Computing skew" />
+    ) : (
+      <div className="h-full" />
     );
   }
   if (unavailable || !data) {

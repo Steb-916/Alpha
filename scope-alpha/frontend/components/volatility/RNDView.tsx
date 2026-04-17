@@ -6,6 +6,11 @@ import { useRND } from "@/hooks/useRND";
 import { useOptionsChain } from "@/hooks/useOptionsChain";
 import { ExpirationSelector } from "./ExpirationSelector";
 import { UnavailableBanner } from "./UnavailableBanner";
+import {
+  ComputeLoader,
+  useDelayedLoadingSignal,
+} from "./ComputeLoader";
+import { RND_STAGES } from "@/lib/options/loading-stages";
 
 const WIDTH = 800;
 const HEIGHT = 220;
@@ -26,6 +31,7 @@ export function RNDView({ asset }: RNDViewProps) {
     asset,
     expiryDate,
   );
+  const showLoader = useDelayedLoadingSignal(isLoading);
 
   const chart = useMemo(() => {
     if (!data) return null;
@@ -68,11 +74,11 @@ export function RNDView({ asset }: RNDViewProps) {
       </div>
 
       {isLoading ? (
-        <GlassCard>
-          <p className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-            Loading…
-          </p>
-        </GlassCard>
+        showLoader ? (
+          <ComputeLoader stages={RND_STAGES} title="Running RND pipeline" />
+        ) : (
+          <div className="h-full" />
+        )
       ) : unavailable || !data ? (
         <UnavailableBanner
           quantEngineConfigured={quantEngineConfigured}

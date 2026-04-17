@@ -21,6 +21,11 @@ const ALERT_TYPES = [
   "iv_below",
   "skew_extreme",
   "vrp_extreme",
+  // Phase 4 — options microstructure
+  "gamma_flip_crossed",
+  "gex_regime_change",
+  "flow_anomaly",
+  "pin_risk_high",
 ] as const;
 const CONDITIONS = [
   "above",

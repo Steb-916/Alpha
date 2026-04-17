@@ -315,3 +315,26 @@ model IVSnapshot {
   @@unique([asset, timestamp])
   @@index([asset, timestamp])
 }
+
+/// Hourly GEX snapshots — used to power the GEX heatmap over time and
+/// gamma-regime tracking. `levelsData` is the full strike→GEX array so the
+/// heatmap renderer can resurrect the per-strike profile at any point.
+model GEXSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+
+  gammaFlip   Float
+  totalGex    Float
+  regime      String
+  callWall    Float
+  putWall     Float
+
+  levelsData  Json
+
+  spotPrice   Float
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}

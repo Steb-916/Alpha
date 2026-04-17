@@ -8,6 +8,7 @@ import { useSkew } from "@/hooks/useSkew";
 import { useVRP } from "@/hooks/useVRP";
 import { useVolCone } from "@/hooks/useVolCone";
 import { formatPercent, formatLargeNumber } from "@/lib/utils";
+import { PinRiskCard } from "./PinRiskCard";
 
 interface VolOverviewProps {
   asset: string;
@@ -305,6 +306,8 @@ export function VolOverview({ asset }: VolOverviewProps) {
           </p>
         </GlassCard>
       )}
+
+      <PinRiskCard asset={asset} />
     </div>
   );
 }

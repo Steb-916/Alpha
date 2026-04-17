@@ -26,10 +26,14 @@ import {
 import { DeribitConnector } from '@/lib/exchanges/deribit';
 import { parseBookSummaries } from '@/lib/options/chain-parser';
 import { aggregateChain, type ChainAggregate } from '@/lib/options/aggregate';
+import { computeGEX } from '@/lib/options/gex';
+import { computeDEX } from '@/lib/options/dex';
+import { computeVannaCharm } from '@/lib/options/vanna-charm';
 import {
   persistOptionsChainSnapshot,
   persistVolSurfaceSnapshot,
   persistIVSnapshot,
+  persistGEXSnapshot,
   type OptionsChainSnapshotInput,
 } from '@/lib/market/persistence';
 import { quantEngine } from '@/lib/quant-engine';
@@ -38,6 +42,9 @@ import type {
   OptionsChainEntry,
 } from '@/lib/exchanges/deribit-types';
 import type {
+  DEXOutput,
+  GEXOutput,
+  GreeksExposureOutput,
   RNDInput,
   RNDOutput,
   SkewInput,
@@ -49,6 +56,7 @@ import type {
   VRPInput,
   VRPOutput,
 } from '@/types/options';
+import { getCached } from '@/lib/cache/redis';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -86,6 +94,10 @@ export interface FetchAndCacheResult {
   vrp: VRPOutput | null;
   /** RND results keyed by expiry ISO date (YYYY-MM-DD). */
   rnd: Record<string, RNDOutput>;
+  /** Phase 4 microstructure — computed in TypeScript from Deribit Greeks. */
+  gex: GEXOutput | null;
+  dex: DEXOutput | null;
+  greeksExposure: GreeksExposureOutput | null;
   /** Metrics for the cron's response payload. */
   metrics: {
     instruments: number;
@@ -110,6 +122,9 @@ function emptyResult(
     volCone: null,
     vrp: null,
     rnd: {},
+    gex: null,
+    dex: null,
+    greeksExposure: null,
     metrics: {
       instruments: 0,
       persisted: 0,
@@ -153,11 +168,46 @@ export async function fetchAndCacheOptionsData(
     const aggregate = aggregateChain(asset, chain);
     result.aggregate = aggregate;
 
-    // Step 3: cache raw chain + aggregate (fresh + stale copies)
+    // Step 3a: snapshot the previous chain before overwriting — the flow
+    // scanner compares current vs previous to detect OI surges.
+    const existingChain = await getCached<OptionsChainEntry[]>(
+      `options:chain:${asset}`,
+    );
+    if (existingChain && Array.isArray(existingChain) && existingChain.length > 0) {
+      await setCached(
+        `options:chain:previous:${asset}`,
+        existingChain,
+        CACHE_TTL,
+      );
+    }
+
+    // Step 3b: cache raw chain + aggregate (fresh + stale copies)
     await Promise.all([
       writeFreshAndStale(`options:chain:${asset}`, chain, CACHE_TTL),
       writeFreshAndStale(`options:aggregate:${asset}`, aggregate, CACHE_TTL),
     ]);
+
+    // Step 3c: Phase 4 — compute GEX / DEX / vanna-charm in TypeScript
+    // directly from the Deribit Greeks. These are not Quant-Engine-gated.
+    const gex = computeGEX(asset, chain);
+    result.gex = gex;
+    if (gex) {
+      await writeFreshAndStale(`options:gex:${asset}`, gex, CACHE_TTL);
+    }
+    const dex = computeDEX(asset, chain);
+    result.dex = dex;
+    if (dex) {
+      await writeFreshAndStale(`options:dex:${asset}`, dex, CACHE_TTL);
+    }
+    const greeksExposure = computeVannaCharm(asset, chain);
+    result.greeksExposure = greeksExposure;
+    if (greeksExposure) {
+      await writeFreshAndStale(
+        `options:greeks-exposure:${asset}`,
+        greeksExposure,
+        CACHE_TTL,
+      );
+    }
 
     // Step 4: persist chain snapshot (idempotent bulk)
     const now = new Date();
@@ -184,6 +234,21 @@ export async function fetchAndCacheOptionsData(
       result.metrics.persisted = await persistOptionsChainSnapshot(
         persistInputs,
       );
+
+      // Phase 4: persist hourly GEX snapshot for the over-time heatmap.
+      if (gex) {
+        await persistGEXSnapshot({
+          asset,
+          gammaFlip: gex.gamma_flip,
+          totalGex: gex.total_gex,
+          regime: gex.regime,
+          callWall: gex.call_wall,
+          putWall: gex.put_wall,
+          levelsData: gex.levels,
+          spotPrice: gex.spot_price,
+          timestamp: now,
+        });
+      }
     }
 
     // Step 5: Quant Engine dispatch — bail if inert or caller opted out

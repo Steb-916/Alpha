@@ -11,6 +11,11 @@ import { SkewView } from "@/components/volatility/SkewView";
 import { TermStructureView } from "@/components/volatility/TermStructureView";
 import { VolConeView } from "@/components/volatility/VolConeView";
 import { VRPView } from "@/components/volatility/VRPView";
+import { GEXView } from "@/components/volatility/GEXView";
+import { GEXHeatmap } from "@/components/volatility/GEXHeatmap";
+import { DEXView } from "@/components/volatility/DEXView";
+import { VannaCharmView } from "@/components/volatility/VannaCharmView";
+import { FlowScannerView } from "@/components/volatility/FlowScannerView";
 
 const TABS = [
   { label: "Overview", value: "overview" },
@@ -20,6 +25,11 @@ const TABS = [
   { label: "Term", value: "term" },
   { label: "Vol Cone", value: "cone" },
   { label: "VRP", value: "vrp" },
+  { label: "GEX", value: "gex" },
+  { label: "GEX Heatmap", value: "gex_heatmap" },
+  { label: "DEX", value: "dex" },
+  { label: "Vanna / Charm", value: "vanna_charm" },
+  { label: "Flow", value: "flow" },
 ] as const;
 
 type TabValue = (typeof TABS)[number]["value"];
@@ -35,7 +45,7 @@ function VolatilityInner() {
   return (
     <div className="h-full flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2 shrink-0 px-1">
-        <nav className="flex gap-1">
+        <nav className="flex gap-1 overflow-x-auto scrollbar-thin">
           {TABS.map((tab) => {
             const active = tab.value === view;
             return (
@@ -46,7 +56,7 @@ function VolatilityInner() {
                     ? "/terminal/volatility"
                     : `/terminal/volatility?view=${tab.value}`
                 }
-                className="px-3 py-1.5 text-xs font-body rounded-[var(--radius-sm)]"
+                className="px-3 py-1.5 text-xs font-body rounded-[var(--radius-sm)] whitespace-nowrap"
                 style={{
                   color: active ? "var(--accent-green)" : "var(--text-secondary)",
                   background: active ? "rgba(0, 212, 170, 0.08)" : "transparent",
@@ -79,6 +89,11 @@ function VolatilityInner() {
         {view === "term" && <TermStructureView asset={asset} />}
         {view === "cone" && <VolConeView asset={asset} />}
         {view === "vrp" && <VRPView asset={asset} />}
+        {view === "gex" && <GEXView asset={asset} />}
+        {view === "gex_heatmap" && <GEXHeatmap asset={asset} />}
+        {view === "dex" && <DEXView asset={asset} />}
+        {view === "vanna_charm" && <VannaCharmView asset={asset} />}
+        {view === "flow" && <FlowScannerView asset={asset} />}
       </div>
     </div>
   );

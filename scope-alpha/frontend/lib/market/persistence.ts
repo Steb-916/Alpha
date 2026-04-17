@@ -314,6 +314,53 @@ export async function persistIVSnapshot(input: IVSnapshotInput): Promise<void> {
   }
 }
 
+export interface GEXSnapshotInput {
+  asset: string;
+  gammaFlip: number;
+  totalGex: number;
+  regime: string;
+  callWall: number;
+  putWall: number;
+  levelsData: Array<{ strike: number; gex_usd: number; side: string }>;
+  spotPrice: number;
+  timestamp: Date;
+}
+
+export async function persistGEXSnapshot(
+  input: GEXSnapshotInput,
+): Promise<void> {
+  try {
+    const ts = floorToHour(input.timestamp);
+    await prisma.gEXSnapshot.upsert({
+      where: { asset_timestamp: { asset: input.asset, timestamp: ts } },
+      create: {
+        asset: input.asset,
+        gammaFlip: input.gammaFlip,
+        totalGex: input.totalGex,
+        regime: input.regime,
+        callWall: input.callWall,
+        putWall: input.putWall,
+        levelsData: input.levelsData as Prisma.InputJsonValue,
+        spotPrice: input.spotPrice,
+        timestamp: ts,
+      },
+      update: {
+        gammaFlip: input.gammaFlip,
+        totalGex: input.totalGex,
+        regime: input.regime,
+        callWall: input.callWall,
+        putWall: input.putWall,
+        levelsData: input.levelsData as Prisma.InputJsonValue,
+        spotPrice: input.spotPrice,
+      },
+    });
+  } catch (err) {
+    log('warn', 'persistGEXSnapshot failed', {
+      metadata: { asset: input.asset, error: (err as Error).message },
+    });
+  }
+}
+
 export async function persistHealthScoreSnapshot(
   input: HealthSnapshotInput,
 ): Promise<void> {

@@ -143,7 +143,7 @@ export async function withCacheAndStale<T>(
   try {
     const value = await fetcher();
     const stamped =
-      value && typeof value === 'object'
+      value && typeof value === 'object' && !Array.isArray(value)
         ? ({ ...(value as object), _cachedAt: Date.now() } as T & {
             _cachedAt: number;
           })
@@ -170,14 +170,19 @@ export async function withCacheAndStale<T>(
   }
 }
 
-/** Direct, low-level set used by the screener cron when the wrapper isn't suitable. */
+/**
+ * Direct, low-level set used by the screener cron when the wrapper isn't suitable.
+ *
+ * Arrays are stored as-is (not spread) so array round-tripping works; plain
+ * object values get a `_cachedAt` timestamp stamped in.
+ */
 export async function writeFreshAndStale<T>(
   key: string,
   value: T,
   ttlSeconds: number,
 ): Promise<void> {
   const stamped =
-    value && typeof value === 'object'
+    value && typeof value === 'object' && !Array.isArray(value)
       ? ({ ...(value as object), _cachedAt: Date.now() } as T)
       : value;
   await setCached(key, stamped, ttlSeconds);
