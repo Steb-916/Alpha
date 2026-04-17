@@ -11,8 +11,10 @@ import type {
   TextNoteData,
   SignalMarkerData,
   FreehandData,
+  FibonacciData,
   AnnotationType,
 } from "@/lib/annotations";
+import { FIB_LEVELS } from "@/lib/annotations";
 
 interface AnnotationOverlayProps {
   chart: IChartApi | null;
@@ -272,6 +274,89 @@ export function useAnnotationRenderer({
           path.setAttribute("stroke-linecap", "round");
           path.setAttribute("stroke-linejoin", "round");
           svg!.appendChild(path);
+        });
+
+      // Render Fibonacci retracement — draws horizontal level lines between
+      // startPrice (100%) and endPrice (0%) from startTime to the chart's
+      // right edge, with a labeled percentage at the right end of each line.
+      visibleAnnotations
+        .filter((a) => a.annotationType === "fibonacci")
+        .forEach((a) => {
+          const data = a.data as FibonacciData;
+          const startX = chart!.timeScale().timeToCoordinate(data.startTime as any);
+          if (startX === null) return;
+          const containerWidth = containerRef.current?.clientWidth || 800;
+          // Extend lines to the right edge (leave 60px for labels).
+          const endX = containerWidth - 60;
+          if (endX <= startX) return;
+
+          const levels = data.levels ?? FIB_LEVELS;
+          // Golden ratio gets a slightly bolder treatment.
+          const isGolden = (lvl: number) => Math.abs(lvl - 0.618) < 0.001;
+          // Light fill between 0 and 1 for visual anchoring.
+          const startY = series!.priceToCoordinate(data.startPrice);
+          const endY = series!.priceToCoordinate(data.endPrice);
+          if (startY !== null && endY !== null) {
+            const fillRect = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "rect"
+            );
+            fillRect.setAttribute("x", String(startX));
+            fillRect.setAttribute("y", String(Math.min(startY, endY)));
+            fillRect.setAttribute("width", String(endX - startX));
+            fillRect.setAttribute("height", String(Math.abs(endY - startY)));
+            fillRect.setAttribute("fill", data.color);
+            fillRect.setAttribute("opacity", "0.04");
+            svg!.appendChild(fillRect);
+          }
+
+          for (const lvl of levels) {
+            const levelPrice =
+              data.endPrice + (data.startPrice - data.endPrice) * lvl;
+            const y = series!.priceToCoordinate(levelPrice);
+            if (y === null) continue;
+
+            const line = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "line"
+            );
+            line.setAttribute("x1", String(startX));
+            line.setAttribute("y1", String(y));
+            line.setAttribute("x2", String(endX));
+            line.setAttribute("y2", String(y));
+            line.setAttribute("stroke", data.color);
+            line.setAttribute("stroke-width", isGolden(lvl) ? "1.5" : "1");
+            line.setAttribute(
+              "stroke-opacity",
+              lvl === 0 || lvl === 1 ? "0.9" : isGolden(lvl) ? "0.75" : "0.5"
+            );
+            if (lvl !== 0 && lvl !== 1 && !isGolden(lvl)) {
+              line.setAttribute("stroke-dasharray", "3,3");
+            }
+            svg!.appendChild(line);
+
+            // Label (e.g. "61.8%") to the right of the line. Integer levels
+            // (0, 50, 100) drop the decimal; fractional levels keep one digit.
+            const pctNum = lvl * 100;
+            const pct = Number.isInteger(pctNum)
+              ? pctNum.toFixed(0)
+              : pctNum.toFixed(1);
+            const label = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "text"
+            );
+            label.setAttribute("x", String(endX + 4));
+            label.setAttribute("y", String(y + 3));
+            label.setAttribute("fill", data.color);
+            label.setAttribute("font-size", "10");
+            label.setAttribute("font-family", "'JetBrains Mono', monospace");
+            label.setAttribute(
+              "opacity",
+              lvl === 0 || lvl === 1 ? "1" : isGolden(lvl) ? "0.95" : "0.7"
+            );
+            label.textContent = `${pct}%`;
+            svg!.appendChild(label);
+          }
         });
     };
 

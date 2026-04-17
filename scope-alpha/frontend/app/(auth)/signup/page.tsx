@@ -58,7 +58,7 @@ export default function SignupPage() {
       if (result?.error) {
         setError("Account created but login failed. Please sign in manually.");
       } else {
-        router.push("/terminal");
+        router.push("/terminal/derivatives");
         router.refresh();
       }
     } catch {
@@ -84,7 +84,7 @@ export default function SignupPage() {
           Create your account
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Join the Scope Alpha marketplace
+          Start using the Scope Alpha analytics terminal
         </p>
       </div>
 

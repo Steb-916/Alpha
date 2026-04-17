@@ -58,7 +58,7 @@ export function TosAcceptanceModal() {
           >
             Before continuing, please review and accept our{" "}
             <Link
-              href="/legal/terms"
+              href="/terms"
               target="_blank"
               className="no-underline"
               style={{ color: "var(--accent-green)" }}
@@ -67,7 +67,7 @@ export function TosAcceptanceModal() {
             </Link>{" "}
             and{" "}
             <Link
-              href="/legal/privacy"
+              href="/privacy"
               target="_blank"
               className="no-underline"
               style={{ color: "var(--accent-green)" }}

@@ -6,18 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
-import { loginAsDemo } from "@/lib/demoLogin";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/terminal";
+  const callbackUrl = searchParams.get("callbackUrl") || "/terminal/derivatives";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +52,7 @@ function LoginForm() {
           Sign in to Scope Alpha
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Access your trading terminal
+          Access your analytics terminal
         </p>
       </div>
 
@@ -185,42 +183,6 @@ function LoginForm() {
         </span>
       </GlassButton>
 
-      {/* Demo divider */}
-      <div className="my-6 flex items-center gap-3">
-        <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
-        <span className="text-xs font-body" style={{ color: "var(--text-tertiary)" }}>
-          or explore without an account
-        </span>
-        <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
-      </div>
-
-      <button
-        onClick={async () => {
-          setDemoLoading(true);
-          await loginAsDemo();
-        }}
-        disabled={demoLoading}
-        className="w-full py-3.5 rounded-[var(--radius-md)] text-sm font-bold font-body cursor-pointer transition-all"
-        style={{
-          background: "transparent",
-          border: "1px solid var(--accent-green)",
-          color: "var(--accent-green)",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "rgba(0, 212, 170, 0.08)";
-          e.currentTarget.style.boxShadow = "0 0 20px rgba(0, 212, 170, 0.1)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.boxShadow = "none";
-        }}
-      >
-        {demoLoading ? "Loading demo..." : "Explore Demo — No account needed"}
-      </button>
-      <p className="text-center text-[11px] font-body mt-2" style={{ color: "var(--text-muted)" }}>
-        Browse as a demo analyst with full access
-      </p>
-
       <p
         className="mt-6 text-center text-sm font-body"
         style={{ color: "var(--text-secondary)" }}
@@ -235,14 +197,13 @@ function LoginForm() {
         </Link>
       </p>
 
-      {/* Phase 7: Terms + Privacy footer links */}
       <p
         className="mt-4 text-center text-[10px] font-body"
         style={{ color: "var(--text-tertiary)" }}
       >
         By signing in you agree to our{" "}
         <Link
-          href="/legal/terms"
+          href="/terms"
           className="no-underline"
           style={{ color: "var(--text-muted)" }}
         >
@@ -250,7 +211,7 @@ function LoginForm() {
         </Link>{" "}
         and{" "}
         <Link
-          href="/legal/privacy"
+          href="/privacy"
           className="no-underline"
           style={{ color: "var(--text-muted)" }}
         >

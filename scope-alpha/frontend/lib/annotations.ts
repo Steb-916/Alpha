@@ -6,7 +6,8 @@ export type AnnotationType =
   | "price_zone"
   | "text_note"
   | "signal_marker"
-  | "freehand";
+  | "freehand"
+  | "fibonacci";
 
 export type LineStyle = "solid" | "dashed" | "dotted";
 export type SignalDirection = "long" | "short";
@@ -59,13 +60,32 @@ export interface FreehandData {
   width: number;
 }
 
+export interface FibonacciData {
+  // Two anchor points: typically drawn from swing high → swing low for a
+  // retracement (or swing low → swing high for an uptrend retrace). Level 0
+  // is at the second point (end), level 1.0 is at the first point (start).
+  startTime: number;
+  startPrice: number;
+  endTime: number;
+  endPrice: number;
+  color: string;
+  // Optional override; defaults to FIB_LEVELS when omitted.
+  levels?: number[];
+}
+
 export type AnnotationData =
   | HorizontalLineData
   | TrendLineData
   | PriceZoneData
   | TextNoteData
   | SignalMarkerData
-  | FreehandData;
+  | FreehandData
+  | FibonacciData;
+
+// Standard retracement levels. 0.618 is the golden ratio — the most
+// watched level by traders. Extensions (1.272, 1.618) are intentionally
+// excluded from v1 to keep the rendering simple.
+export const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
 
 export interface Annotation {
   id: string;
@@ -88,6 +108,7 @@ export type DrawingTool =
   | "text_note"
   | "signal_marker"
   | "freehand"
+  | "fibonacci"
   | "select"
   | "eraser";
 
@@ -99,6 +120,7 @@ export const TOOL_LABELS: Record<DrawingTool, string> = {
   text_note: "Text",
   signal_marker: "Signal",
   freehand: "Draw",
+  fibonacci: "Fib Retracement",
   eraser: "Erase",
 };
 
@@ -110,6 +132,7 @@ export const TOOL_ICONS: Record<DrawingTool, string> = {
   text_note: "T",
   signal_marker: "⚑",
   freehand: "✎",
+  fibonacci: "ƒ",
   eraser: "⌫",
 };
 

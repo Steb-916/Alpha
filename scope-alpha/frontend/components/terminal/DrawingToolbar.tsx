@@ -15,6 +15,7 @@ const tools: DrawingTool[] = [
   "horizontal_line",
   "trend_line",
   "price_zone",
+  "fibonacci",
   "text_note",
   "signal_marker",
   "freehand",

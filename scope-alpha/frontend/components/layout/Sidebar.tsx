@@ -1,58 +1,43 @@
 "use client";
+
 import { usePathname, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { TERMINAL_NAV, TOOLS_NAV, type NavItem } from "@/config/navigation";
 import {
-  Store,
-  LayoutDashboard,
-  Zap,
-  Target,
-  Flame,
-  GitCompare,
-  Grid3X3,
-  Pencil,
-  Signal,
-  Wallet,
-  Rss,
-  Bookmark,
+  Activity,
+  ArrowLeftRight,
   ChevronsLeft,
   ChevronsRight,
+  Filter,
+  FlaskConical,
+  GitBranch,
+  Globe,
+  MessageCircle,
+  Settings,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
-interface NavItem {
-  label: string;
-  Icon: LucideIcon;
-  path: string;
-}
-
-const discoverItems: NavItem[] = [
-  { label: "Marketplace", Icon: Store, path: "/marketplace" },
-  // Phase 5: subscriber portfolio
-  { label: "Portfolio", Icon: Wallet, path: "/portfolio" },
-  // Phase 6: community feed + bookmarks
-  { label: "Feed", Icon: Rss, path: "/feed" },
-  { label: "Bookmarks", Icon: Bookmark, path: "/bookmarks" },
-];
-
-const terminalItems: NavItem[] = [
-  { label: "Dashboard", Icon: LayoutDashboard, path: "/terminal" },
-  { label: "Funding", Icon: Zap, path: "/terminal/funding" },
-  { label: "Open Interest", Icon: Target, path: "/terminal/oi" },
-  { label: "Liquidations", Icon: Flame, path: "/terminal/liquidations" },
-  { label: "Basis", Icon: GitCompare, path: "/terminal/basis" },
-  { label: "Screener", Icon: Grid3X3, path: "/terminal/screener" },
-];
-
-const analystItems: NavItem[] = [
-  { label: "My Workspace", Icon: Pencil, path: "/terminal" },
-  { label: "My Signals", Icon: Signal, path: "/terminal" },
-];
+const ICON_MAP: Record<string, LucideIcon> = {
+  Activity,
+  ArrowLeftRight,
+  Filter,
+  FlaskConical,
+  GitBranch,
+  Globe,
+  MessageCircle,
+  TrendingUp,
+};
 
 function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean }) {
   if (collapsed) {
-    return <div className="mx-auto my-2 w-5 h-px" style={{ background: "var(--glass-border)" }} />;
+    return (
+      <div
+        className="mx-auto my-2 w-5 h-px"
+        style={{ background: "var(--glass-border)" }}
+      />
+    );
   }
   return (
     <div
@@ -76,24 +61,22 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
-  const { data: session } = useSession();
-  const isAnalyst = session?.user?.role === "analyst";
 
-  const isMarketplaceActive =
-    pathname === "/marketplace" || pathname.startsWith("/analyst/");
+  function renderNavItem(item: NavItem) {
+    const Icon = ICON_MAP[item.icon] ?? TrendingUp;
+    const active = pathname === item.path || pathname.startsWith(item.path + "/");
 
-  function renderNavItem(item: NavItem, active: boolean) {
     return (
       <button
-        key={item.label + item.path}
+        key={item.path}
         onClick={() => router.push(item.path)}
         className={cn(
           "w-full flex items-center gap-3 relative cursor-pointer",
           sidebarCollapsed ? "px-0 py-2 justify-center" : "px-3 py-2",
-          "active:scale-[0.97]"
+          "active:scale-[0.97]",
         )}
         style={{
-          color: active ? "var(--accent-green)" : "var(--text-secondary)",
+          color: active ? "var(--accent-green)" : item.enabled ? "var(--text-secondary)" : "var(--text-muted)",
           background: active ? "rgba(0, 212, 170, 0.06)" : "transparent",
           borderLeft: active ? "3px solid var(--accent-green)" : "3px solid transparent",
           borderRadius: active ? "0 8px 8px 0" : "0 var(--radius-sm) var(--radius-sm) 0",
@@ -108,17 +91,32 @@ export function Sidebar() {
         onMouseLeave={(e) => {
           if (!active) {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.color = item.enabled
+              ? "var(--text-secondary)"
+              : "var(--text-muted)";
           }
         }}
+        title={!item.enabled ? `Coming in Phase ${item.phase}` : undefined}
       >
-        <item.Icon size={18} strokeWidth={1.75} className="shrink-0" />
+        <Icon size={18} strokeWidth={1.75} className="shrink-0" />
         {!sidebarCollapsed && (
-          <span className="text-xs font-medium tracking-wide whitespace-nowrap">{item.label}</span>
+          <span className="text-xs font-medium tracking-wide whitespace-nowrap flex-1 text-left">
+            {item.label}
+          </span>
+        )}
+        {!sidebarCollapsed && !item.enabled && (
+          <span
+            className="text-[9px] uppercase tracking-wider"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Soon
+          </span>
         )}
       </button>
     );
   }
+
+  const isSettingsActive = pathname.startsWith("/settings");
 
   return (
     <aside
@@ -133,15 +131,30 @@ export function Sidebar() {
       {/* Logo */}
       <a
         href="/"
-        onClick={(e) => { e.preventDefault(); router.push("/"); }}
+        onClick={(e) => {
+          e.preventDefault();
+          router.push("/");
+        }}
         className="flex items-center gap-2.5 p-3 h-12 shrink-0 cursor-pointer"
         style={{ borderBottom: "1px solid var(--glass-border)" }}
       >
-        <div className="w-7 h-7 rounded-lg relative overflow-hidden shrink-0" style={{
-          filter: "drop-shadow(0 0 8px var(--accent-green-glow))",
-        }}>
+        <div
+          className="w-7 h-7 rounded-lg relative overflow-hidden shrink-0"
+          style={{ filter: "drop-shadow(0 0 8px var(--accent-green-glow))" }}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-full.png" alt="Scope Alpha" style={{ position: "absolute", width: "300%", maxWidth: "none", left: "50%", top: "50%", transform: "translate(-50%, -50%)" }} />
+          <img
+            src="/logo-full.png"
+            alt="Scope Alpha"
+            style={{
+              position: "absolute",
+              width: "300%",
+              maxWidth: "none",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+            }}
+          />
         </div>
         {!sidebarCollapsed && (
           <span
@@ -153,30 +166,38 @@ export function Sidebar() {
         )}
       </a>
 
-      {/* Nav Items with Sections */}
       <nav className="flex-1 py-1 px-1 space-y-0.5 relative z-10 overflow-y-auto">
-        {/* DISCOVER section */}
-        <SectionLabel label="Discover" collapsed={sidebarCollapsed} />
-        {discoverItems.map((item) => renderNavItem(item, isMarketplaceActive))}
-
-        {/* TERMINAL section */}
         <SectionLabel label="Terminal" collapsed={sidebarCollapsed} />
-        {terminalItems.map((item) => {
-          const isActive =
-            item.path === "/terminal"
-              ? pathname === "/terminal"
-              : pathname.startsWith(item.path);
-          return renderNavItem(item, isActive);
-        })}
+        {TERMINAL_NAV.map((item) => renderNavItem(item))}
 
-        {/* ANALYST section (role-gated) */}
-        {isAnalyst && (
-          <>
-            <SectionLabel label="Analyst" collapsed={sidebarCollapsed} />
-            {analystItems.map((item) => renderNavItem(item, false))}
-          </>
-        )}
+        <SectionLabel label="Tools" collapsed={sidebarCollapsed} />
+        {TOOLS_NAV.map((item) => renderNavItem(item))}
       </nav>
+
+      {/* Settings */}
+      <button
+        onClick={() => router.push("/settings")}
+        className={cn(
+          "flex items-center gap-3 relative cursor-pointer",
+          sidebarCollapsed ? "px-0 py-3 justify-center" : "px-3 py-3",
+        )}
+        style={{
+          color: isSettingsActive ? "var(--accent-green)" : "var(--text-secondary)",
+          borderTop: "1px solid var(--glass-border)",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          if (!isSettingsActive) e.currentTarget.style.color = "var(--text-primary)";
+        }}
+        onMouseLeave={(e) => {
+          if (!isSettingsActive) e.currentTarget.style.color = "var(--text-secondary)";
+        }}
+      >
+        <Settings size={18} strokeWidth={1.75} className="shrink-0" />
+        {!sidebarCollapsed && (
+          <span className="text-xs font-medium tracking-wide">Settings</span>
+        )}
+      </button>
 
       {/* Collapse Toggle */}
       <button
@@ -187,10 +208,18 @@ export function Sidebar() {
           color: "var(--text-muted)",
           transition: "color 0.2s ease",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = "var(--text-primary)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = "var(--text-muted)";
+        }}
       >
-        {sidebarCollapsed ? <ChevronsRight size={16} strokeWidth={1.75} /> : <ChevronsLeft size={16} strokeWidth={1.75} />}
+        {sidebarCollapsed ? (
+          <ChevronsRight size={16} strokeWidth={1.75} />
+        ) : (
+          <ChevronsLeft size={16} strokeWidth={1.75} />
+        )}
       </button>
     </aside>
   );

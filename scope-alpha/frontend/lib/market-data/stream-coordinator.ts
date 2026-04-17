@@ -7,7 +7,7 @@
 
 import { getWSManager } from './ws-manager';
 import { getMarketDataCache } from './cache';
-import { getPrimaryExchange } from '../exchanges';
+import { tryExchanges } from '../exchanges';
 import { TIER1_SYMBOLS, ALL_TRACKED_SYMBOLS } from '../exchanges/types';
 import type { SSEClient } from './ws-manager';
 
@@ -187,35 +187,60 @@ class StreamCoordinator {
   }
 
   private async _prefetchInitialData(): Promise<void> {
-    const exchange = getPrimaryExchange();
     const cache = getMarketDataCache();
 
+    // Each call falls through [binance → bybit → okx] so a geo-blocked primary
+    // doesn't wipe out the whole prefetch. Per-symbol work is allSettled so one
+    // symbol's failure still leaves the rest warm.
     try {
-      // Fetch tickers for all tracked symbols
-      const tickers = await exchange.get24hrTicker();
+      const tickers = await tryExchanges((ex) => ex.get24hrTicker(), 'prefetch tickers');
       tickers.forEach((t) => cache.setLatestTicker(t.symbol, t));
-
-      // Fetch klines for Tier 1
-      await Promise.allSettled(
-        TIER1_SYMBOLS.map(async (symbol) => {
-          const klines = await exchange.getKlines(symbol, '1h', 500);
-          cache.setKlines(symbol, '1h', klines);
-
-          const klines1m = await exchange.getKlines(symbol, '1m', 500);
-          cache.setKlines(symbol, '1m', klines1m);
-
-          const funding = await exchange.getFundingRate(symbol);
-          cache.setFundingRate(symbol, funding);
-
-          const oi = await exchange.getOpenInterest(symbol);
-          cache.setOpenInterest(symbol, oi);
-        })
-      );
-
-      console.log('[StreamCoordinator] Prefetched initial data');
     } catch (err) {
-      console.error('[StreamCoordinator] Prefetch error:', err);
+      console.warn('[StreamCoordinator] ticker prefetch skipped:', err);
     }
+
+    await Promise.allSettled(
+      TIER1_SYMBOLS.map(async (symbol) => {
+        try {
+          const klines = await tryExchanges(
+            (ex) => ex.getKlines(symbol, '1h', 500),
+            `prefetch klines ${symbol} 1h`
+          );
+          cache.setKlines(symbol, '1h', klines);
+        } catch (err) {
+          console.warn(`[StreamCoordinator] ${symbol} 1h klines skipped:`, err);
+        }
+        try {
+          const klines1m = await tryExchanges(
+            (ex) => ex.getKlines(symbol, '1m', 500),
+            `prefetch klines ${symbol} 1m`
+          );
+          cache.setKlines(symbol, '1m', klines1m);
+        } catch (err) {
+          console.warn(`[StreamCoordinator] ${symbol} 1m klines skipped:`, err);
+        }
+        try {
+          const funding = await tryExchanges(
+            (ex) => ex.getFundingRate(symbol),
+            `prefetch funding ${symbol}`
+          );
+          cache.setFundingRate(symbol, funding);
+        } catch (err) {
+          console.warn(`[StreamCoordinator] ${symbol} funding skipped:`, err);
+        }
+        try {
+          const oi = await tryExchanges(
+            (ex) => ex.getOpenInterest(symbol),
+            `prefetch OI ${symbol}`
+          );
+          cache.setOpenInterest(symbol, oi);
+        } catch (err) {
+          console.warn(`[StreamCoordinator] ${symbol} OI skipped:`, err);
+        }
+      })
+    );
+
+    console.log('[StreamCoordinator] Prefetched initial data');
   }
 
   private _getClients(): SSEClient[] {

@@ -71,12 +71,12 @@ export function useMarketData() {
     // Fetch klines for new selection
     fetchKlines(asset, tf, 500);
 
-    // If switching to a non-Tier1 symbol, update subscriptions
-    if (!TIER1_SYMBOLS.includes(symbol)) {
-      const symbols = [...new Set([...TIER1_SYMBOLS, symbol])];
-      const { updateSubscriptions } = useMarketDataStore.getState();
-      updateSubscriptions(symbols, [interval, '1m'], DEFAULT_CHANNELS);
-    }
+    // Always re-subscribe so the SSE stream carries the new interval (and new
+    // symbol, if it's not in Tier1). Previously this only fired for non-Tier1
+    // symbols, so switching TF on BTC/ETH left the stream on the old interval.
+    const symbols = [...new Set([...TIER1_SYMBOLS, symbol])];
+    const { updateSubscriptions } = useMarketDataStore.getState();
+    updateSubscriptions(symbols, [interval, '1m'], DEFAULT_CHANNELS);
   }, [selectedAsset, selectedTimeframe, isLiveEnabled, fetchKlines]);
 
   return {

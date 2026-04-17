@@ -25,7 +25,6 @@ export async function POST(request: Request) {
     const password = typeof body.password === "string" ? body.password : "";
     const displayName = sanitizeText(body.displayName);
 
-    // Validate input
     if (!email || !password || !displayName) {
       return NextResponse.json(
         { error: "Email, password, and display name are required" },
@@ -48,7 +47,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -60,17 +58,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate unique slug
     let slug = generateSlug(displayName);
     const existingSlug = await prisma.user.findUnique({ where: { slug } });
     if (existingSlug) {
       slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
     }
 
-    // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
     const user = await prisma.user.create({
       data: {
         email: email.toLowerCase(),
@@ -78,7 +73,7 @@ export async function POST(request: Request) {
         displayName,
         name: displayName,
         slug,
-        role: "subscriber",
+        provider: "credentials",
       },
     });
 

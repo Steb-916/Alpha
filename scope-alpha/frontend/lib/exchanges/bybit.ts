@@ -16,13 +16,19 @@ import type {
 const REST_BASE = process.env.BYBIT_REST_URL || 'https://api.bybit.com/v5';
 
 async function fetchJSON<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const url = new URL(path, REST_BASE);
-  if (params) {
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') url.searchParams.set(k, v);
-    });
-  }
-  const res = await fetch(url.toString());
+  // Direct concat — `new URL(path, base)` drops the /v5 prefix when path
+  // starts with "/", which turned every call into a 404/403.
+  const query = params
+    ? '?' +
+      Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== '')
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  const url = REST_BASE + path + query;
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+  });
   if (!res.ok) throw new Error(`Bybit REST error ${res.status}`);
   const json = await res.json();
   if (json.retCode !== 0) throw new Error(`Bybit API error: ${json.retMsg}`);

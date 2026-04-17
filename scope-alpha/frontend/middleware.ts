@@ -5,15 +5,9 @@ import type { NextRequest } from "next/server";
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 // Routes that must be exempt from CSRF origin validation:
-//   - /api/auth/*           : NextAuth has its own CSRF + the demo bypass route
-//   - /api/stripe/webhook   : Stripe verifies via signature header
-//   - /api/telegram/webhook : Telegram verifies via secret token
+//   - /api/auth/*  : NextAuth has its own CSRF handling
 function isCsrfExempt(pathname: string): boolean {
-  return (
-    pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/stripe/webhook") ||
-    pathname.startsWith("/api/telegram/webhook")
-  );
+  return pathname.startsWith("/api/auth/");
 }
 
 function checkCsrf(request: NextRequest): NextResponse | null {
@@ -26,8 +20,6 @@ function checkCsrf(request: NextRequest): NextResponse | null {
   const referer = request.headers.get("referer");
   const host = request.headers.get("host");
 
-  // Build the allowed origins list. Both http+https variants of the host
-  // header cover localhost, preview deploys, and prod.
   const allowed: string[] = [];
   if (host) {
     allowed.push(`https://${host}`);
@@ -46,10 +38,7 @@ function checkCsrf(request: NextRequest): NextResponse | null {
     }
   }
 
-  if (
-    !requestOrigin ||
-    !allowed.some((a) => requestOrigin!.startsWith(a))
-  ) {
+  if (!requestOrigin || !allowed.some((a) => requestOrigin!.startsWith(a))) {
     return new NextResponse(
       JSON.stringify({ error: "CSRF validation failed" }),
       { status: 403, headers: { "content-type": "application/json" } },
@@ -59,15 +48,14 @@ function checkCsrf(request: NextRequest): NextResponse | null {
   return null;
 }
 
+const PROTECTED_PATH_PREFIXES = ["/terminal", "/tools", "/settings"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ── CSRF: gate /api/* mutations on origin/referer ─────────────────────
-  // Runs BEFORE auth so an attacker can't even reach the auth check.
   const csrfBlock = checkCsrf(request);
   if (csrfBlock) return csrfBlock;
 
-  // ── Auth-driven routing for HTML pages ────────────────────────────────
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
@@ -78,36 +66,29 @@ export async function middleware(request: NextRequest) {
 
   const token = await getToken({ req: request });
 
-  // Redirect authenticated users away from auth pages
   if (token && (pathname === "/login" || pathname === "/signup")) {
-    return NextResponse.redirect(new URL("/terminal", request.url));
+    return NextResponse.redirect(new URL("/terminal/derivatives", request.url));
   }
 
-  // Protect /terminal/* routes — allow demo mode bypass
-  const isDemo = request.cookies.get("scope-alpha-demo")?.value === "true";
-  if (pathname.startsWith("/terminal") && !token && !isDemo) {
+  const isProtected = PROTECTED_PATH_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix),
+  );
+  if (isProtected && !token) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Protect /profile route
-  if (pathname === "/profile" && !token) {
-    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  // Phase 7: include /api/:path* so the CSRF check runs on every API
-  // mutation. Static assets are excluded by the early return above.
   matcher: [
     "/api/:path*",
     "/terminal/:path*",
+    "/tools/:path*",
+    "/settings/:path*",
     "/login",
     "/signup",
-    "/profile",
-    "/profile/:path*",
   ],
 };

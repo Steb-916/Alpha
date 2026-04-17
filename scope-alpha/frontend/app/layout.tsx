@@ -2,16 +2,15 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import { MeshBackground } from "@/components/layout/MeshBackground";
 import { AuthProvider } from "@/components/providers/AuthProvider";
-import { TosAcceptanceModal } from "@/components/legal/TosAcceptanceModal";
-import { AnalystAgreementModal } from "@/components/legal/AnalystAgreementModal";
 import "./globals.css";
 
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit", display: "swap" });
 const jetbrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Scope Alpha — Derivatives Terminal",
-  description: "Real-time crypto derivatives analytics. Funding rates, open interest, liquidations, basis analysis — one terminal.",
+  title: "Scope Alpha — Crypto Analytics",
+  description:
+    "Institutional-grade crypto analytics. Derivatives data, options analytics, on-chain intelligence, and quantitative tools — in one platform.",
 };
 
 export const viewport: Viewport = {
@@ -31,12 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="antialiased" style={{ background: "var(--bg-base)", color: "var(--text-primary)" }} suppressHydrationWarning>
         <MeshBackground />
-        <AuthProvider>
-          {children}
-          {/* Phase 7: gating modals — render only when authenticated and not yet accepted. */}
-          <TosAcceptanceModal />
-          <AnalystAgreementModal />
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

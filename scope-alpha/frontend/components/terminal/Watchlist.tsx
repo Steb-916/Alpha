@@ -15,6 +15,7 @@ export function Watchlist({ data }: WatchlistProps) {
   const { selectedAsset, setAsset } = useAppStore();
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [query, setQuery] = useState("");
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -26,11 +27,19 @@ export function Watchlist({ data }: WatchlistProps) {
   };
 
   const sorted = useMemo(() => {
-    return [...data].sort((a, b) => {
+    const needle = query.trim().toLowerCase();
+    const filtered = needle
+      ? data.filter(
+          (d) =>
+            d.symbol.toLowerCase().includes(needle) ||
+            d.name.toLowerCase().includes(needle)
+        )
+      : data;
+    return [...filtered].sort((a, b) => {
       const mul = sortDir === "asc" ? 1 : -1;
       return mul * ((a[sortKey] as number) - (b[sortKey] as number));
     });
-  }, [data, sortKey, sortDir]);
+  }, [data, sortKey, sortDir, query]);
 
   const SortIcon = ({ col }: { col: SortKey }) => (
     <span
@@ -48,6 +57,35 @@ export function Watchlist({ data }: WatchlistProps) {
         style={{ borderBottom: "1px solid var(--glass-border)" }}
       >
         <span className="text-xs font-semibold" style={{ color: "var(--text-primary)" }}>Watchlist</span>
+      </div>
+
+      {/* Search */}
+      <div
+        className="relative px-3 py-2"
+        style={{ borderBottom: "1px solid var(--glass-border)" }}
+      >
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search symbol or name…"
+          className="w-full text-[11px] font-mono px-2 py-1.5 rounded outline-none"
+          style={{
+            background: "var(--glass-bg)",
+            border: "1px solid var(--glass-border)",
+            color: "var(--text-primary)",
+          }}
+        />
+        {query.length > 0 && (
+          <button
+            onClick={() => setQuery("")}
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-mono cursor-pointer"
+            style={{ color: "var(--text-muted)" }}
+            aria-label="Clear search"
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {/* Header */}
@@ -68,6 +106,14 @@ export function Watchlist({ data }: WatchlistProps) {
 
       {/* Rows */}
       <div className="flex-1 overflow-y-auto">
+        {sorted.length === 0 && (
+          <div
+            className="px-3 py-4 text-[11px] font-mono text-center"
+            style={{ color: "var(--text-muted)" }}
+          >
+            No matches
+          </div>
+        )}
         {sorted.map((asset) => {
           const isSelected = selectedAsset === asset.symbol;
           return (

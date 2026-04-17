@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrimaryExchange } from '@/lib/exchanges';
+import { tryExchanges } from '@/lib/exchanges';
 import { toBinanceSymbol, toBinanceInterval } from '@/lib/exchanges/utils';
 import { getMarketDataCache } from '@/lib/market-data/cache';
 
@@ -38,9 +38,13 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Cache miss or insufficient data — fetch from exchange
-    const exchange = getPrimaryExchange();
-    klines = await exchange.getKlines(symbol, interval, limit);
+    // Cache miss or insufficient data — fetch from first reachable exchange.
+    // tryExchanges walks [binance, bybit, okx] so geo-blocked primaries fall
+    // through to a working source instead of returning 500.
+    klines = await tryExchanges(
+      (ex) => ex.getKlines(symbol, interval, limit),
+      `klines ${symbol} ${interval}`
+    );
 
     // Populate cache
     cache.setKlines(symbol, interval, klines);

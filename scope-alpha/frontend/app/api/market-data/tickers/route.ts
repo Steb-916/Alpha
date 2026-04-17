@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getPrimaryExchange } from '@/lib/exchanges';
+import { tryExchanges } from '@/lib/exchanges';
 import { toBinanceSymbol } from '@/lib/exchanges/utils';
 import { getMarketDataCache } from '@/lib/market-data/cache';
 import { ALL_TRACKED_SYMBOLS } from '@/lib/exchanges/types';
@@ -31,9 +31,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data: [ticker] });
       }
 
-      // Fetch from exchange
-      const exchange = getPrimaryExchange();
-      const tickers = await exchange.get24hrTicker(symbol);
+      // Fetch from first reachable exchange (handles Binance geo-blocks).
+      const tickers = await tryExchanges(
+        (ex) => ex.get24hrTicker(symbol),
+        `ticker ${symbol}`
+      );
       tickers.forEach((t) => cache.setLatestTicker(t.symbol, t));
       return NextResponse.json({ data: tickers });
     }
@@ -49,9 +51,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fetch all tickers from exchange
-    const exchange = getPrimaryExchange();
-    const allTickers = await exchange.get24hrTicker();
+    // Fetch all tickers from first reachable exchange.
+    const allTickers = await tryExchanges(
+      (ex) => ex.get24hrTicker(),
+      'all tickers'
+    );
 
     // Cache and filter to tracked symbols
     const tracked = new Set(ALL_TRACKED_SYMBOLS);

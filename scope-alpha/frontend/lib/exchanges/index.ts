@@ -39,17 +39,47 @@ export function getPrimaryExchange(): ExchangeConnector {
 }
 
 /**
- * Get all enabled exchange connectors.
+ * Get all enabled exchange connectors, ordered by preference.
  *
- * Phase 1 default: Binance + Bybit (per user decision). OKX deferred.
- * Set DISABLE_BYBIT=true to fall back to Binance-only, or ENABLE_OKX=true
- * to opt into OKX (its REST methods are still stubs as of this commit).
+ * Default: Binance → Bybit → OKX. The route-level fallback iterates this list
+ * on failure. OKX is the safety net for geos where Binance futures REST is
+ * geo-blocked (e.g. US 451) since its public endpoints work worldwide.
+ *
+ * Env toggles:
+ *   DISABLE_BYBIT=true  drop Bybit from the chain
+ *   DISABLE_OKX=true    drop OKX from the chain
  */
 export function getEnabledExchanges(): ExchangeConnector[] {
   const exchanges: ExchangeConnector[] = [getExchange('binance')];
   if (process.env.DISABLE_BYBIT !== 'true') exchanges.push(getExchange('bybit'));
-  if (process.env.ENABLE_OKX === 'true') exchanges.push(getExchange('okx'));
+  if (process.env.DISABLE_OKX !== 'true') exchanges.push(getExchange('okx'));
   return exchanges;
+}
+
+/**
+ * Call `op` against each enabled exchange in order until one returns. Throws
+ * the last error if all exchanges fail. Logs each failure so geo-blocks are
+ * visible in the server log.
+ */
+export async function tryExchanges<T>(
+  op: (exchange: ExchangeConnector) => Promise<T>,
+  context: string
+): Promise<T> {
+  const exchanges = getEnabledExchanges();
+  let lastErr: unknown = new Error('no exchanges enabled');
+  for (const exchange of exchanges) {
+    try {
+      return await op(exchange);
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        `[exchanges] ${context} via ${exchange.name} failed: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+  throw lastErr;
 }
 
 // Re-export types and utilities

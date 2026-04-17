@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { createChart, type IChartApi, type ISeriesApi, ColorType } from "lightweight-charts";
 import { useAppStore } from "@/lib/store";
 
@@ -23,13 +23,46 @@ export interface PriceChartRef {
   container: HTMLDivElement | null;
 }
 
+interface HoverInfo {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  change: number;
+}
+
+function formatHoverNumber(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  if (Math.abs(n) >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (Math.abs(n) >= 1) return n.toFixed(2);
+  return n.toPrecision(4);
+}
+
+function formatHoverVolume(v: number): string {
+  if (!Number.isFinite(v)) return "—";
+  if (v >= 1_000_000_000) return (v / 1_000_000_000).toFixed(2) + "B";
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(2) + "M";
+  if (v >= 1_000) return (v / 1_000).toFixed(2) + "K";
+  return v.toFixed(0);
+}
+
 export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
   function PriceChart({ data, loading }, ref) {
     const containerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
     const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+    const dataRef = useRef<CandleData[]>(data);
+    const [hover, setHover] = useState<HoverInfo | null>(null);
     const { selectedAsset, selectedTimeframe } = useAppStore();
+
+    // Keep latest data available to the crosshair handler without re-binding
+    // subscribeCrosshairMove on every data mutation.
+    useEffect(() => {
+      dataRef.current = data;
+    }, [data]);
 
     useImperativeHandle(ref, () => ({
       get chart() { return chartRef.current; },
@@ -128,9 +161,50 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
       });
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+      // Crosshair HUD — surfaces O/H/L/C/V + Chg% for the bar under the cursor.
+      const crosshairHandler = (param: any) => {
+        const arr = dataRef.current;
+        if (!arr.length) {
+          setHover(null);
+          return;
+        }
+        // Mouse off the chart: fall back to the latest candle.
+        if (!param || param.time === undefined || param.time === null) {
+          const last = arr[arr.length - 1];
+          setHover({
+            time: last.time,
+            open: last.open,
+            high: last.high,
+            low: last.low,
+            close: last.close,
+            volume: last.volume,
+            change: last.open === 0 ? 0 : ((last.close - last.open) / last.open) * 100,
+          });
+          return;
+        }
+        const t = param.time as number;
+        const bar = arr.find((d) => d.time === t);
+        if (!bar) return;
+        setHover({
+          time: bar.time,
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close,
+          volume: bar.volume,
+          change: bar.open === 0 ? 0 : ((bar.close - bar.open) / bar.open) * 100,
+        });
+      };
+      chart.subscribeCrosshairMove(crosshairHandler);
+
       return () => {
         resizeObserver.disconnect();
         observer.disconnect();
+        try {
+          chart.unsubscribeCrosshairMove(crosshairHandler);
+        } catch {
+          // chart may already be disposed
+        }
         chart.remove();
         chartRef.current = null;
         candleSeriesRef.current = null;
@@ -158,7 +232,24 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
       candleSeriesRef.current.setData(candleData);
       volumeSeriesRef.current.setData(volumeData);
       chartRef.current?.timeScale().fitContent();
+
+      // Prime the HUD to the most recent candle so the readout isn't empty
+      // before the user hovers.
+      if (data.length) {
+        const last = data[data.length - 1];
+        setHover({
+          time: last.time,
+          open: last.open,
+          high: last.high,
+          low: last.low,
+          close: last.close,
+          volume: last.volume,
+          change: last.open === 0 ? 0 : ((last.close - last.open) / last.open) * 100,
+        });
+      }
     }, [data]);
+
+    const changeColor = hover && hover.close >= hover.open ? "var(--positive)" : "var(--negative)";
 
     return (
       <div className="relative w-full h-full">
@@ -166,6 +257,35 @@ export const PriceChart = forwardRef<PriceChartRef, PriceChartProps>(
           <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{selectedAsset}/USDT</span>
           <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>{selectedTimeframe}</span>
         </div>
+        {hover && (
+          <div
+            data-testid="chart-hud"
+            className="absolute top-2 right-3 z-10 flex items-center gap-2 px-2 py-1 rounded font-mono pointer-events-none"
+            style={{
+              fontSize: "10px",
+              background: "var(--glass-bg)",
+              border: "1px solid var(--glass-border)",
+              backdropFilter: "blur(10px)",
+              color: "var(--text-primary)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span style={{ color: "var(--text-muted)" }}>O</span>
+            <span>{formatHoverNumber(hover.open)}</span>
+            <span style={{ color: "var(--text-muted)" }}>H</span>
+            <span>{formatHoverNumber(hover.high)}</span>
+            <span style={{ color: "var(--text-muted)" }}>L</span>
+            <span>{formatHoverNumber(hover.low)}</span>
+            <span style={{ color: "var(--text-muted)" }}>C</span>
+            <span style={{ color: changeColor }}>{formatHoverNumber(hover.close)}</span>
+            <span style={{ color: "var(--text-muted)" }}>V</span>
+            <span>{formatHoverVolume(hover.volume)}</span>
+            <span style={{ color: changeColor }}>
+              {hover.change >= 0 ? "+" : ""}
+              {hover.change.toFixed(2)}%
+            </span>
+          </div>
+        )}
         {/* Container is rendered unconditionally so the setup effect can
             always bind to a real DOM node. Without this, first-load hit a
             conditional-render-vs-effect race where the spinner branch
