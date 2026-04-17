@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -13,9 +14,11 @@ import {
   FlaskConical,
   GitBranch,
   Globe,
+  LogIn,
   MessageCircle,
   Settings,
   TrendingUp,
+  UserPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,7 +60,11 @@ function SectionLabel({ label, collapsed }: { label: string; collapsed: boolean 
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isGuest?: boolean;
+}
+
+export function Sidebar({ isGuest = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
@@ -174,30 +181,76 @@ export function Sidebar() {
         {TOOLS_NAV.map((item) => renderNavItem(item))}
       </nav>
 
-      {/* Settings */}
-      <button
-        onClick={() => router.push("/settings")}
-        className={cn(
-          "flex items-center gap-3 relative cursor-pointer",
-          sidebarCollapsed ? "px-0 py-3 justify-center" : "px-3 py-3",
-        )}
-        style={{
-          color: isSettingsActive ? "var(--accent-green)" : "var(--text-secondary)",
-          borderTop: "1px solid var(--glass-border)",
-          transition: "all 0.2s ease",
-        }}
-        onMouseEnter={(e) => {
-          if (!isSettingsActive) e.currentTarget.style.color = "var(--text-primary)";
-        }}
-        onMouseLeave={(e) => {
-          if (!isSettingsActive) e.currentTarget.style.color = "var(--text-secondary)";
-        }}
-      >
-        <Settings size={18} strokeWidth={1.75} className="shrink-0" />
-        {!sidebarCollapsed && (
-          <span className="text-xs font-medium tracking-wide">Settings</span>
-        )}
-      </button>
+      {/* Settings (authed) or Sign Up / Log In (guest) */}
+      {isGuest ? (
+        <div
+          className={cn(
+            "flex flex-col gap-1",
+            sidebarCollapsed ? "items-center py-3" : "p-2",
+          )}
+          style={{ borderTop: "1px solid var(--glass-border)" }}
+        >
+          <Link
+            href="/signup"
+            className={cn(
+              "flex items-center gap-2 w-full rounded-[var(--radius-sm)]",
+              sidebarCollapsed ? "p-2 justify-center" : "px-3 py-2",
+            )}
+            style={{
+              background: "rgba(0, 212, 170, 0.1)",
+              border: "1px solid var(--accent-green)",
+              color: "var(--accent-green)",
+            }}
+            title="Create free account"
+          >
+            <UserPlus size={14} strokeWidth={1.75} className="shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-xs font-bold tracking-wide">Sign up</span>
+            )}
+          </Link>
+          <Link
+            href="/login"
+            className={cn(
+              "flex items-center gap-2 w-full rounded-[var(--radius-sm)]",
+              sidebarCollapsed ? "p-2 justify-center" : "px-3 py-2",
+            )}
+            style={{
+              border: "1px solid var(--glass-border)",
+              color: "var(--text-secondary)",
+            }}
+            title="Log in"
+          >
+            <LogIn size={14} strokeWidth={1.75} className="shrink-0" />
+            {!sidebarCollapsed && (
+              <span className="text-xs font-medium tracking-wide">Log in</span>
+            )}
+          </Link>
+        </div>
+      ) : (
+        <button
+          onClick={() => router.push("/settings")}
+          className={cn(
+            "flex items-center gap-3 relative cursor-pointer",
+            sidebarCollapsed ? "px-0 py-3 justify-center" : "px-3 py-3",
+          )}
+          style={{
+            color: isSettingsActive ? "var(--accent-green)" : "var(--text-secondary)",
+            borderTop: "1px solid var(--glass-border)",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (!isSettingsActive) e.currentTarget.style.color = "var(--text-primary)";
+          }}
+          onMouseLeave={(e) => {
+            if (!isSettingsActive) e.currentTarget.style.color = "var(--text-secondary)";
+          }}
+        >
+          <Settings size={18} strokeWidth={1.75} className="shrink-0" />
+          {!sidebarCollapsed && (
+            <span className="text-xs font-medium tracking-wide">Settings</span>
+          )}
+        </button>
+      )}
 
       {/* Collapse Toggle */}
       <button

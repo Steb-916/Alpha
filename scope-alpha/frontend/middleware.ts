@@ -48,7 +48,10 @@ function checkCsrf(request: NextRequest): NextResponse | null {
   return null;
 }
 
-const PROTECTED_PATH_PREFIXES = ["/terminal", "/tools", "/settings"];
+// Routes that require an authenticated session. `/terminal` and `/tools` are
+// guest-accessible (real live data, no account needed) — they appear in the
+// matcher below only so the authed-user redirect from `/login` still works.
+const PROTECTED_PATH_PREFIXES = ["/settings"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
