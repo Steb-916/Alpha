@@ -11,9 +11,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 
+# Railway and most PaaS providers inject a dynamic $PORT. Fall back to 8000
+# for local docker runs. Shell form of CMD so the env var expands.
+ENV PORT=8000
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()" || exit 1
+  CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:' + os.environ.get('PORT','8000') + '/health').read()" || exit 1
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
