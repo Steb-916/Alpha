@@ -8,6 +8,7 @@ import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_INSTRUMENTS, generateFundingData } from "@/lib/mockData";
 import { formatFundingRate, formatPercent, cn, getChangeColor } from "@/lib/utils";
 import { useLiveFundingData } from "@/hooks/useLiveTerminalData";
+import { HistoricalFundingChart } from "@/components/terminal/HistoricalFundingChart";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   const min = Math.min(...data);
@@ -218,6 +219,7 @@ export function FundingView() {
           </GlassCard>
         </div>
       </div>
+      <HistoricalFundingChart />
     </div>
   );
 }

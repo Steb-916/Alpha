@@ -8,6 +8,7 @@ import { useHydrated } from "@/lib/useHydrated";
 import { MOCK_INSTRUMENTS, generateLiquidationData } from "@/lib/mockData";
 import { formatLargeNumber, formatPrice, formatPercent, cn } from "@/lib/utils";
 import { useMarketDataStore } from "@/lib/marketDataStore";
+import { HistoricalLiquidationsChart } from "@/components/terminal/HistoricalLiquidationsChart";
 
 function LiqBarChart({ data, height = 140 }: { data: { time: number; longVol: number; shortVol: number }[]; height?: number }) {
   const maxVol = Math.max(...data.map((d) => d.longVol + d.shortVol), 1);
@@ -217,6 +218,7 @@ export function LiquidationsView() {
           </div>
         </GlassCard>
       </div>
+      <HistoricalLiquidationsChart />
     </div>
   );
 }

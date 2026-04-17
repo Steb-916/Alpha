@@ -7,12 +7,8 @@
  */
 
 /**
- * Regime band boundaries (composite score out of 100).
- * score < RISK_OFF → "Risk Off"
- * score < CAUTIOUS → "Cautious"
- * score < NEUTRAL  → "Neutral"
- * score < RISK_ON  → "Risk On"
- * score ≥ RISK_ON  → "Overheated"
+ * Legacy 5-band regime thresholds (Phase 1).
+ * Kept for backward compat; v2 uses REGIME_V2_BANDS below.
  */
 export const REGIME_THRESHOLDS = {
   RISK_OFF: 25,
@@ -20,6 +16,63 @@ export const REGIME_THRESHOLDS = {
   NEUTRAL: 60,
   RISK_ON: 80,
 } as const;
+
+/**
+ * Phase 2: 7-band regime classification per PRD §4.6.
+ * score < min → (we return "extreme_fear"), score >= max → "euphoria".
+ */
+export type RegimeV2 =
+  | 'extreme_fear'
+  | 'bearish'
+  | 'cautious'
+  | 'neutral'
+  | 'optimistic'
+  | 'bullish'
+  | 'euphoria';
+
+export interface RegimeBand {
+  label: RegimeV2;
+  /** Upper bound (exclusive), except for the last band. */
+  max: number;
+  /** Tailwind-compatible hex color used by RegimeBadge. */
+  color: string;
+  /** Human-readable description. */
+  description: string;
+}
+
+export const REGIME_V2_BANDS: RegimeBand[] = [
+  { label: 'extreme_fear', max: 15,  color: '#7f1d1d', description: 'Capitulation — heavy liquidations, negative funding' },
+  { label: 'bearish',      max: 30,  color: '#dc2626', description: 'Sustained selling pressure' },
+  { label: 'cautious',     max: 45,  color: '#f97316', description: 'Mixed signals, slight bearish lean' },
+  { label: 'neutral',      max: 55,  color: '#9ca3af', description: 'No clear directional bias' },
+  { label: 'optimistic',   max: 70,  color: '#86efac', description: 'Positive bias, moderate long positioning' },
+  { label: 'bullish',      max: 85,  color: '#22c55e', description: 'Strong long bias, positive funding, rising OI' },
+  { label: 'euphoria',     max: 101, color: '#eab308', description: 'Extreme long bias, potential overheating' },
+];
+
+/**
+ * Trend direction labels derived from change24h/change7d deltas.
+ */
+export type TrendDirection =
+  | 'rapidly_improving'
+  | 'improving'
+  | 'stable'
+  | 'deteriorating'
+  | 'rapidly_deteriorating';
+
+export type TrendMomentum = 'accelerating' | 'steady' | 'decelerating';
+
+/**
+ * Score-delta bands for trend direction classification.
+ * Applied to change24h (primary).
+ */
+export const TREND_BANDS: Array<{ min: number; label: TrendDirection }> = [
+  { min: 15,  label: 'rapidly_improving' },
+  { min: 5,   label: 'improving' },
+  { min: -5,  label: 'stable' },
+  { min: -15, label: 'deteriorating' },
+  { min: -Infinity, label: 'rapidly_deteriorating' },
+];
 
 /**
  * Funding z-score → component score (out of 25).
@@ -63,6 +116,14 @@ export const DEFAULT_COMPONENT_SCORE = 12;
 
 /** Special default for liquidation when snapshot is empty/null. */
 export const DEFAULT_LIQUIDATION_SCORE = 15;
+
+/** Component weights (must sum to 1.0). Used by ComponentBreakdown UI. */
+export const COMPONENT_WEIGHTS = {
+  funding: 0.3,
+  oi: 0.25,
+  liquidation: 0.25,
+  basis: 0.2,
+} as const;
 
 export function pickScore(
   value: number,

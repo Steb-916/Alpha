@@ -146,6 +146,61 @@ export interface CandleHistoryInput {
   timestamp: Date;
 }
 
+export interface HealthSnapshotInput {
+  asset: string;
+  score: number;
+  regime: string;
+  funding: number;
+  oi: number;
+  liquidation: number;
+  basis: number;
+  /** Will be floored to the hour internally */
+  timestamp: Date;
+}
+
+export async function persistHealthScoreSnapshot(
+  input: HealthSnapshotInput,
+): Promise<void> {
+  try {
+    const ts = floorToHour(input.timestamp);
+    await prisma.healthScoreSnapshot.upsert({
+      where: {
+        asset_timestamp: {
+          asset: input.asset,
+          timestamp: ts,
+        },
+      },
+      create: {
+        asset: input.asset,
+        score: input.score,
+        regime: input.regime,
+        funding: input.funding,
+        oi: input.oi,
+        liquidation: input.liquidation,
+        basis: input.basis,
+        timestamp: ts,
+      },
+      // Update on conflict so the hour's final reading is the latest one;
+      // same-hour calls collapse to a single row with the most recent score.
+      update: {
+        score: input.score,
+        regime: input.regime,
+        funding: input.funding,
+        oi: input.oi,
+        liquidation: input.liquidation,
+        basis: input.basis,
+      },
+    });
+  } catch (err) {
+    log('warn', 'persistHealthScoreSnapshot failed', {
+      metadata: {
+        asset: input.asset,
+        error: (err as Error).message,
+      },
+    });
+  }
+}
+
 export async function persistCandleHistory(
   candles: CandleHistoryInput[],
 ): Promise<number> {

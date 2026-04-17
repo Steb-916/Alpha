@@ -3,27 +3,26 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import {
+  useAlertNotifications,
+  type AlertHistoryItem,
+} from "@/hooks/useAlertNotifications";
 
-interface AlertHistoryItem {
-  id: string;
-  asset: string;
-  type: string;
-  condition: string;
-  threshold: number;
-  actualValue: number;
-  triggeredAt: string;
+function formatTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
 }
 
-/**
- * Notification bell. Polls /api/alerts/history for recent alert triggers.
- * Phase 0 stores alerts but does not trigger them — this will show an empty
- * list until Phase 2's trigger engine starts writing rows.
- */
 export function AlertBell() {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<AlertHistoryItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const { items, unreadCount, markAllRead } = useAlertNotifications(30_000);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -33,31 +32,18 @@ export function AlertBell() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/alerts/history?limit=20");
-      if (res.ok) {
-        const data = await res.json();
-        setItems(data.items ?? []);
-      }
-    } catch {
-      /* silent */
-    } finally {
-      setLoading(false);
-    }
+  function toggleOpen() {
+    setOpen((v) => {
+      const next = !v;
+      if (next) markAllRead();
+      return next;
+    });
   }
-
-  useEffect(() => {
-    if (open) load();
-  }, [open]);
-
-  const unread = items.length;
 
   return (
     <div className="relative" ref={ref}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         className="relative w-9 h-9 rounded-full flex items-center justify-center cursor-pointer"
         style={{
           background: "var(--glass-bg)",
@@ -67,12 +53,12 @@ export function AlertBell() {
         title="Alerts"
       >
         <Bell size={16} strokeWidth={1.75} />
-        {unread > 0 && (
+        {unreadCount > 0 && (
           <span
             className="absolute -top-0.5 -right-0.5 w-[14px] h-[14px] rounded-full text-[8px] font-bold leading-[14px] text-center"
             style={{ background: "var(--accent-red)", color: "white" }}
           >
-            {unread > 9 ? "9+" : unread}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
@@ -96,14 +82,7 @@ export function AlertBell() {
             Recent Alerts
           </div>
           <div className="max-h-80 overflow-y-auto">
-            {loading ? (
-              <div
-                className="px-3 py-6 text-center text-xs font-body"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Loading…
-              </div>
-            ) : items.length === 0 ? (
+            {items.length === 0 ? (
               <div
                 className="px-3 py-6 text-center text-xs font-body"
                 style={{ color: "var(--text-muted)" }}
@@ -111,7 +90,7 @@ export function AlertBell() {
                 No recent alerts.
               </div>
             ) : (
-              items.map((item) => (
+              items.map((item: AlertHistoryItem) => (
                 <div
                   key={item.id}
                   className="px-3 py-2 text-xs font-body"
@@ -121,8 +100,7 @@ export function AlertBell() {
                     {item.asset} {item.type} {item.condition} {item.threshold}
                   </div>
                   <div style={{ color: "var(--text-muted)" }}>
-                    actual {item.actualValue} —{" "}
-                    {new Date(item.triggeredAt).toLocaleString()}
+                    actual {item.actualValue.toFixed(4)} — {formatTimeAgo(item.triggeredAt)}
                   </div>
                 </div>
               ))

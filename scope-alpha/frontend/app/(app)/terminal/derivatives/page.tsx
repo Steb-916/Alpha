@@ -9,6 +9,7 @@ import { OIView } from "@/components/terminal/views/OIView";
 import { LiquidationsView } from "@/components/terminal/views/LiquidationsView";
 import { BasisView } from "@/components/terminal/views/BasisView";
 import { ScreenerView } from "@/components/terminal/views/ScreenerView";
+import { CrossExchangeView } from "@/components/terminal/views/CrossExchangeView";
 
 const TABS = [
   { label: "Overview", value: "overview" },
@@ -16,6 +17,7 @@ const TABS = [
   { label: "Open Interest", value: "oi" },
   { label: "Liquidations", value: "liquidations" },
   { label: "Basis", value: "basis" },
+  { label: "Cross-Exchange", value: "cross_exchange" },
   { label: "Screener", value: "screener" },
 ] as const;
 
@@ -56,6 +58,7 @@ function DerivativesInner() {
         {view === "oi" && <OIView />}
         {view === "liquidations" && <LiquidationsView />}
         {view === "basis" && <BasisView />}
+        {view === "cross_exchange" && <CrossExchangeView />}
         {view === "screener" && <ScreenerView />}
       </div>
     </div>

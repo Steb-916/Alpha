@@ -29,7 +29,10 @@ import {
   type LiqSnapshot,
 } from '@/lib/market/health';
 import { generateHealthScore } from '@/lib/mockData';
+import { prisma } from '@/lib/prisma';
+import { persistHealthScoreSnapshot } from '@/lib/market/persistence';
 import type { BasisData, FundingData, OpenInterestData } from '@/lib/types';
+import type { SnapshotLite } from '@/lib/analytics/trend';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -71,7 +74,9 @@ export async function GET(req: Request) {
       `market:health:${cfg.symbol}`,
       TTL_SECONDS,
       async () => {
-        const [funding, oi, basis, liquidation] = await Promise.all([
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+        const [funding, oi, basis, liquidation, historyRows] = await Promise.all([
           getOrCompute<FundingData>(
             `market:funding:${cfg.symbol}`,
             60,
@@ -88,15 +93,50 @@ export async function GET(req: Request) {
             () => aggregateBasis(cfg.symbol),
           ),
           getCached<LiqSnapshot>(LIQ_SNAPSHOT_KEY(cfg.binance)),
+          prisma.healthScoreSnapshot
+            .findMany({
+              where: {
+                asset: cfg.symbol,
+                timestamp: { gte: sevenDaysAgo },
+              },
+              orderBy: { timestamp: 'asc' },
+              take: 200,
+            })
+            .catch(() => []),
         ]);
 
-        return computeHealthScore({
+        const history: SnapshotLite[] = historyRows.map((r) => ({
+          score: r.score,
+          funding: r.funding,
+          oi: r.oi,
+          liquidation: r.liquidation,
+          basis: r.basis,
+          timestamp: r.timestamp,
+        }));
+
+        const result = computeHealthScore({
           symbol: cfg.symbol,
           funding,
           oi,
           basis,
           liquidation,
+          history,
         });
+
+        // Fire-and-forget: persist this hour's snapshot. Idempotent via
+        // @@unique(asset, timestamp) with hour-floored timestamp.
+        void persistHealthScoreSnapshot({
+          asset: cfg.symbol,
+          score: result.score,
+          regime: result.regimeV2 ?? result.regime,
+          funding: result.components.funding,
+          oi: result.components.oi,
+          liquidation: result.components.liquidation,
+          basis: result.components.basis,
+          timestamp: new Date(),
+        });
+
+        return result;
       },
     );
     return NextResponse.json(data);

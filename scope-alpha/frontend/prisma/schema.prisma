@@ -226,3 +226,21 @@ model CandleHistory {
   @@unique([asset, exchange, timeframe, timestamp])
   @@index([asset, timeframe, timestamp])
 }
+
+// ─── Phase 2: Health score snapshots for trend + sparkline rendering ──────
+
+model HealthScoreSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+  score       Float
+  regime      String
+  funding     Float
+  oi          Float
+  liquidation Float
+  basis       Float
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}

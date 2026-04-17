@@ -35,7 +35,14 @@ import {
   setCached,
   writeFreshAndStale,
 } from '@/lib/cache/redis';
+import { persistHealthScoreSnapshot } from '@/lib/market/persistence';
+import { runAlertsForAsset } from '@/lib/alerts/runner';
 import { BinanceConnector } from '@/lib/exchanges/binance';
+import { computeCVD, cvdTrendLabel } from '@/lib/analytics/cvd';
+import {
+  buildFundingOpportunity,
+  fundingFromData,
+} from '@/lib/analytics/arb-scanner';
 import type {
   BasisData,
   FundingData,
@@ -167,12 +174,63 @@ async function buildRow(asset: AssetConfig): Promise<{
     PER_METRIC_TTL,
   );
 
+  // Phase 2: persist the composite score snapshot for trend rendering.
+  // Hour-floored via the helper, idempotent via @@unique(asset, timestamp).
+  void persistHealthScoreSnapshot({
+    asset: asset.symbol,
+    score: health.score,
+    regime: health.regimeV2 ?? health.regime,
+    funding: health.components.funding,
+    oi: health.components.oi,
+    liquidation: health.components.liquidation,
+    basis: health.components.basis,
+    timestamp: new Date(),
+  });
+
+  // Phase 2: evaluate configured alerts for this asset against fresh data.
+  // Fire-and-forget so a slow DB read doesn't stall the cron.
+  void runAlertsForAsset(asset.symbol, {
+    funding,
+    oi,
+    basis,
+    liquidation: liqSnap,
+    health,
+    ticker: ticker ? { lastPrice: ticker.lastPrice } : null,
+  });
+
   // Liquidation totals (24h) from the snapshot. If absent, leave as 0.
   const liq24h = liqSnap ? liqSnap.longUsd + liqSnap.shortUsd : 0;
   const liqRatio =
     liqSnap && liqSnap.shortUsd > 0
       ? liqSnap.longUsd / liqSnap.shortUsd
       : 0;
+
+  // Phase 2: quick CVD trend derived from the 24h sparkline klines fetched
+  // above. Reuses the same candle objects so no extra REST round-trip.
+  let cvdTrend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+  try {
+    const klines = await binance.getKlines(asset.binance, '1h', 24);
+    const cvdSeries = computeCVD(klines);
+    cvdTrend = cvdTrendLabel(cvdSeries);
+  } catch {
+    /* skip — cvdTrend defaults to neutral */
+  }
+
+  // Phase 2: rough arb yield using funding differential only (basis requires
+  // historical data we may not have yet). Null when both rates aren't present.
+  let arbYield: number | undefined;
+  if (funding) {
+    const rates = fundingFromData(funding);
+    if (rates.binance != null && rates.bybit != null) {
+      const op = buildFundingOpportunity({
+        asset: asset.symbol,
+        binanceRate: rates.binance,
+        bybitRate: rates.bybit,
+        history: [],
+      });
+      if (op) arbYield = op.netYieldAfterFees;
+    }
+  }
 
   const row: ScreenerRow = {
     // MarketSnapshot fields
@@ -196,6 +254,9 @@ async function buildRow(asset: AssetConfig): Promise<{
     basis: basis?.currentBasis ?? 0,
     healthScore: health.score,
     regime: health.regime,
+    regimeV2: health.regimeV2,
+    cvdTrend,
+    arbYield,
   };
 
   return { row };

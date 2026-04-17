@@ -83,12 +83,41 @@ export interface BasisData {
 export interface HealthScore {
   symbol: string;
   score: number;
+  /** Phase 1 legacy label kept for backward compat. */
   regime: "Risk Off" | "Cautious" | "Neutral" | "Risk On" | "Overheated";
   components: {
     funding: number;
     oi: number;
     liquidation: number;
     basis: number;
+  };
+  /** Phase 2: 7-band regime label (optional for backward compat). */
+  regimeV2?:
+    | "extreme_fear"
+    | "bearish"
+    | "cautious"
+    | "neutral"
+    | "optimistic"
+    | "bullish"
+    | "euphoria";
+  regimeColor?: string;
+  trend?: {
+    direction:
+      | "rapidly_improving"
+      | "improving"
+      | "stable"
+      | "deteriorating"
+      | "rapidly_deteriorating";
+    change24h: number;
+    change7d: number;
+    momentum: "accelerating" | "steady" | "decelerating";
+  };
+  sparkline24h?: number[];
+  componentSparklines?: {
+    funding: number[];
+    oi: number[];
+    liquidation: number[];
+    basis: number[];
   };
 }
 
@@ -102,6 +131,10 @@ export interface ScreenerRow extends MarketSnapshot {
   basis: number;
   healthScore: number;
   regime: string;
+  /** Phase 2 additions */
+  regimeV2?: string;
+  cvdTrend?: "bullish" | "bearish" | "neutral";
+  arbYield?: number;
 }
 
 export type TimeFrame = "1m" | "5m" | "15m" | "1H" | "4H" | "1D" | "1W";

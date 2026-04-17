@@ -137,6 +137,8 @@ export class BinanceConnector implements ExchangeConnector {
       symbol: toBinanceSymbol(symbol),
       interval: toBinanceInterval(interval),
       isClosed: true, // historical klines are always closed
+      // Kline[9] = taker buy base-asset volume. Used by CVD.
+      takerBuyVolume: parseFloat(k[9] as unknown as string),
     }));
   }
 
@@ -239,6 +241,41 @@ export class BinanceConnector implements ExchangeConnector {
         low24h: parseFloat(t.lowPrice),
         timestamp: Date.now(),
       }));
+  }
+
+  /**
+   * Global long/short account ratio from /futures/data/globalLongShortAccountRatio.
+   * Returns the most recent ratio as longShortRatio: longAccount / shortAccount.
+   * Used by the liquidation heatmap to estimate long vs short position share.
+   */
+  async getLongShortRatio(
+    symbol: string,
+    period: string = '1h',
+  ): Promise<{ longShortRatio: number; longAccount: number; shortAccount: number } | null> {
+    try {
+      const raw = await fetchJSON<
+        Array<{
+          symbol: string;
+          longShortRatio: string;
+          longAccount: string;
+          shortAccount: string;
+          timestamp: number;
+        }>
+      >('/futures/data/globalLongShortAccountRatio', {
+        symbol: toBinanceSymbol(symbol),
+        period,
+        limit: '1',
+      });
+      if (!Array.isArray(raw) || raw.length === 0) return null;
+      const r = raw[raw.length - 1];
+      return {
+        longShortRatio: parseFloat(r.longShortRatio),
+        longAccount: parseFloat(r.longAccount),
+        shortAccount: parseFloat(r.shortAccount),
+      };
+    } catch {
+      return null;
+    }
   }
 
   // ── WebSocket Methods ──

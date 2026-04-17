@@ -8,7 +8,16 @@ import { captureRouteError } from "@/lib/sentry";
 
 export const runtime = "nodejs";
 
-const ALERT_TYPES = ["funding_rate", "oi_change", "liquidation", "price", "basis"] as const;
+const ALERT_TYPES = [
+  "funding_rate",
+  "oi_change",
+  "liquidation",
+  "price",
+  "basis",
+  "cvd_divergence",
+  "health_score",
+  "arb_yield",
+] as const;
 const CONDITIONS = [
   "above",
   "below",

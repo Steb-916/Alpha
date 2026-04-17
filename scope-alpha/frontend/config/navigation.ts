@@ -66,7 +66,7 @@ export const TOOLS_NAV: NavItem[] = [
     label: "Arb Scanner",
     path: "/tools/arb-scanner",
     icon: "ArrowLeftRight",
-    enabled: false,
+    enabled: true,
     description:
       "Cross-exchange funding rate arbitrage scanner, basis trade monitor, and position P&L calculator.",
     phase: 2,

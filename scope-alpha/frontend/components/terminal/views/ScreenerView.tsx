@@ -16,6 +16,8 @@ import {
   getHealthColor,
 } from "@/lib/utils";
 import type { ScreenerRow } from "@/lib/types";
+import { RegimeBadge } from "@/components/terminal/RegimeBadge";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 function Sparkline({ data, color, width = 80, height = 24 }: { data: number[]; color: string; width?: number; height?: number }) {
   if (!data.length) return null;
@@ -30,7 +32,7 @@ function Sparkline({ data, color, width = 80, height = 24 }: { data: number[]; c
   );
 }
 
-type SortKey = "symbol" | "price" | "fundingRate" | "fundingZ" | "oi" | "oiChange24h" | "liq24h" | "liqRatio" | "basis" | "healthScore" | "regime";
+type SortKey = "symbol" | "price" | "fundingRate" | "fundingZ" | "oi" | "oiChange24h" | "liq24h" | "liqRatio" | "basis" | "healthScore" | "regime" | "arbYield" | "cvdTrend";
 type SortDir = "asc" | "desc";
 
 const COLUMNS: { key: SortKey; label: string; align: "left" | "right" | "center" }[] = [
@@ -45,6 +47,8 @@ const COLUMNS: { key: SortKey; label: string; align: "left" | "right" | "center"
   { key: "basis", label: "Basis %", align: "right" },
   { key: "healthScore", label: "Health", align: "center" },
   { key: "regime", label: "Regime", align: "center" },
+  { key: "cvdTrend", label: "CVD", align: "center" },
+  { key: "arbYield", label: "Arb Yield", align: "right" },
 ];
 
 export function ScreenerView() {
@@ -200,7 +204,25 @@ export function ScreenerView() {
                       }}>{row.healthScore.toFixed(0)}</div>
                     </td>
                     <td className="py-2 px-2 text-center">
-                      <span className={cn("inline-flex items-center px-2 py-0.5 rounded-[var(--radius-pill)] text-[10px] font-semibold border", getRegimeColor(row.regime))}>{row.regime}</span>
+                      <RegimeBadge label={row.regimeV2 ?? row.regime} />
+                    </td>
+                    <td className="py-2 px-2 text-center">
+                      {row.cvdTrend === "bullish" ? (
+                        <TrendingUp size={14} strokeWidth={1.75} style={{ color: "var(--data-green)" }} className="inline" />
+                      ) : row.cvdTrend === "bearish" ? (
+                        <TrendingDown size={14} strokeWidth={1.75} style={{ color: "var(--data-red)" }} className="inline" />
+                      ) : (
+                        <Minus size={14} strokeWidth={1.75} style={{ color: "var(--text-muted)" }} className="inline" />
+                      )}
+                    </td>
+                    <td className="py-2 px-2 text-right">
+                      {row.arbYield != null ? (
+                        <span style={{ color: row.arbYield > 1 ? "var(--accent-green)" : "var(--text-secondary)" }}>
+                          {formatPercent(row.arbYield, true)}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--text-muted)" }}>—</span>
+                      )}
                     </td>
                   </tr>
                 );

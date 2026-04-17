@@ -11,6 +11,13 @@ export interface OHLCV {
   symbol: string;
   interval: string;
   isClosed: boolean;   // Whether this candle is finalized
+  /**
+   * Taker buy base-asset volume — the portion of `volume` attributable to
+   * aggressive buyers. Present on Binance kline responses; used by CVD.
+   * Optional because other sources (Bybit WS, cached legacy candles) may
+   * not populate it.
+   */
+  takerBuyVolume?: number;
 }
 
 export interface FundingRate {

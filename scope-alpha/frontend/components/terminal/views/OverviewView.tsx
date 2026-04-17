@@ -13,6 +13,10 @@ import { DrawingToolbar } from "@/components/terminal/DrawingToolbar";
 import { LayersPanel } from "@/components/terminal/LayersPanel";
 import { IndicatorsPanel } from "@/components/terminal/IndicatorsPanel";
 import { Watchlist } from "@/components/terminal/Watchlist";
+import { ChartToolbar } from "@/components/terminal/ChartToolbar";
+import { CVDPane } from "@/components/terminal/CVDPane";
+import { LiquidationHeatmap } from "@/components/terminal/LiquidationHeatmap";
+import { useChartToolbar } from "@/lib/chartToolbarStore";
 import { DataCell } from "@/components/ui/DataCell";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/lib/store";
@@ -206,16 +210,19 @@ export function OverviewView() {
         </GlassCard>
       </div>
 
-      {/* Drawing toolbar (everyone) */}
-      <div className="shrink-0 flex items-center gap-2">
-        <DrawingToolbar />
-        <span
-          className="text-[10px] font-mono"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {annotations.filter((a) => a.assetSymbol === selectedAsset).length}{" "}
-          annotations
-        </span>
+      {/* Drawing toolbar + chart toolbar (everyone) */}
+      <div className="shrink-0 flex items-center gap-2 justify-between">
+        <div className="flex items-center gap-2">
+          <DrawingToolbar />
+          <span
+            className="text-[10px] font-mono"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {annotations.filter((a) => a.assetSymbol === selectedAsset).length}{" "}
+            annotations
+          </span>
+        </div>
+        <ChartToolbar />
       </div>
 
       {/* Chart + right sidebar */}
@@ -223,6 +230,7 @@ export function OverviewView() {
         <GlassCard noPadding className="flex-[2] min-h-0 overflow-hidden flex flex-col">
           <div className="flex-1 relative min-h-0" ref={chartContainerRef}>
             <PriceChart ref={chartRef} data={candles} loading={chartLoading} />
+            <LiquidationHeatmap asset={selectedAsset} />
           </div>
           {activeRsi && (
             <div
@@ -266,6 +274,14 @@ export function OverviewView() {
           </GlassCard>
         </div>
       </div>
+      <CVDPaneGated />
     </div>
   );
+}
+
+/** Only mount CVDPane when the toolbar toggle is on. Avoids wasted fetches. */
+function CVDPaneGated() {
+  const showCVD = useChartToolbar((s) => s.showCVD);
+  if (!showCVD) return null;
+  return <CVDPane />;
 }

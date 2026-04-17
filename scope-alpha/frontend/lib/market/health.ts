@@ -24,6 +24,8 @@ import {
   REGIME_THRESHOLDS,
   pickScore,
 } from '@/config/healthScore';
+import { classifyRegime } from '@/lib/analytics/regime';
+import { computeTrend, type SnapshotLite } from '@/lib/analytics/trend';
 
 export interface LiqSnapshot {
   longUsd: number;
@@ -83,6 +85,8 @@ export function computeHealthScore(args: {
   oi: OpenInterestData | null;
   basis: BasisData | null;
   liquidation: LiqSnapshot | null;
+  /** Phase 2: historical snapshots for this asset (last ~7d). Optional. */
+  history?: SnapshotLite[];
 }): HealthScore {
   const fundingScore = scoreFunding(args.funding);
   const oiScore = scoreOI(args.oi);
@@ -94,6 +98,7 @@ export function computeHealthScore(args: {
     Math.min(100, fundingScore + oiScore + liqScore + basisScore),
   );
 
+  // Legacy 5-band label (backward compat).
   let regime: HealthScore['regime'];
   if (score < REGIME_THRESHOLDS.RISK_OFF) regime = 'Risk Off';
   else if (score < REGIME_THRESHOLDS.CAUTIOUS) regime = 'Cautious';
@@ -101,7 +106,9 @@ export function computeHealthScore(args: {
   else if (score < REGIME_THRESHOLDS.RISK_ON) regime = 'Risk On';
   else regime = 'Overheated';
 
-  return {
+  const regimeV2 = classifyRegime(score);
+
+  const base: HealthScore = {
     symbol: args.symbol,
     score,
     regime,
@@ -111,7 +118,32 @@ export function computeHealthScore(args: {
       liquidation: liqScore,
       basis: basisScore,
     },
+    regimeV2: regimeV2.label,
+    regimeColor: regimeV2.color,
   };
+
+  // Trend + sparklines only when history is provided.
+  if (args.history && args.history.length > 0) {
+    const current: SnapshotLite = {
+      score,
+      funding: fundingScore,
+      oi: oiScore,
+      liquidation: liqScore,
+      basis: basisScore,
+      timestamp: new Date(),
+    };
+    const trend = computeTrend(current, args.history);
+    base.trend = {
+      direction: trend.direction,
+      momentum: trend.momentum,
+      change24h: trend.change24h,
+      change7d: trend.change7d,
+    };
+    base.sparkline24h = trend.sparkline24h;
+    base.componentSparklines = trend.componentSparklines;
+  }
+
+  return base;
 }
 
 export const LIQ_SNAPSHOT_KEY = (symbol: string) =>

@@ -9,6 +9,7 @@ import { MOCK_INSTRUMENTS } from "@/lib/mockData";
 import { generateOIData } from "@/lib/mockData";
 import { formatLargeNumber, formatPercent, cn, getChangeColor } from "@/lib/utils";
 import { useLiveOIData } from "@/hooks/useLiveTerminalData";
+import { HistoricalOIChart } from "@/components/terminal/HistoricalOIChart";
 
 function MiniChart({ data, color, height = 120 }: { data: number[]; color: string; height?: number }) {
   const min = Math.min(...data);
@@ -211,6 +212,7 @@ export function OIView() {
           </GlassCard>
         </div>
       </div>
+      <HistoricalOIChart />
     </div>
   );
 }
