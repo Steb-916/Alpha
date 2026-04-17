@@ -240,6 +240,42 @@ export async function delKey(key: string): Promise<void> {
   }
 }
 
+// ─── Single-flight locks (for on-demand cache warming) ────────────────────
+//
+// tryAcquireLock/releaseLock form a short-lived distributed mutex used to
+// prevent thundering-herd problems when multiple requests simultaneously hit
+// a cold cache and each tries to fetch from the upstream. Only one fetcher
+// wins the lock; the others wait briefly and read cache.
+//
+// Semantics: SET NX EX — atomic "set if not exists, with TTL". In-memory
+// fallback uses the same memStore used by the general cache.
+
+const LOCK_PREFIX = '__lock__:';
+
+export async function tryAcquireLock(
+  key: string,
+  ttlSeconds: number,
+): Promise<boolean> {
+  const lockKey = `${LOCK_PREFIX}${key}`;
+  const r = getClient();
+  if (!r) {
+    if (memGet<number>(lockKey) != null) return false;
+    memSet(lockKey, 1, ttlSeconds);
+    return true;
+  }
+  try {
+    const result = await r.set(lockKey, '1', { nx: true, ex: ttlSeconds });
+    return result === 'OK';
+  } catch (err) {
+    console.error(`[cache/redis] tryAcquireLock(${key}) failed:`, err);
+    return false;
+  }
+}
+
+export async function releaseLock(key: string): Promise<void> {
+  await delKey(`${LOCK_PREFIX}${key}`);
+}
+
 // ─── Phase 7: rate-limit counters ──────────────────────────────────────────
 //
 // incrementWithExpiry atomically increments a counter and (on the first
