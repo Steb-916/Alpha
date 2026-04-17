@@ -98,19 +98,37 @@ export class BybitConnector implements ExchangeConnector {
   }
 
   async getOpenInterest(symbol: string): Promise<OpenInterest> {
-    const result = await fetchJSON<{ list: any[] }>('/market/open-interest', {
-      category: 'linear',
-      symbol: symbol.toUpperCase(),
-      intervalTime: '1h',
-      limit: '1',
-    });
-    const item = result.list?.[0] || {};
+    // Bybit's dedicated OI endpoint returns contracts only. To compute the USD
+    // value we fetch the ticker in parallel and multiply by last price. Falls
+    // back to 0 if the ticker fetch fails — the aggregator tolerates nulls.
+    const [oiRes, tickerRes] = await Promise.allSettled([
+      fetchJSON<{ list: any[] }>('/market/open-interest', {
+        category: 'linear',
+        symbol: symbol.toUpperCase(),
+        intervalTime: '1h',
+        limit: '1',
+      }),
+      fetchJSON<{ list: any[] }>('/market/tickers', {
+        category: 'linear',
+        symbol: symbol.toUpperCase(),
+      }),
+    ]);
+
+    const oiItem =
+      oiRes.status === 'fulfilled' ? oiRes.value.list?.[0] || {} : {};
+    const tickerItem =
+      tickerRes.status === 'fulfilled' ? tickerRes.value.list?.[0] || {} : {};
+
+    const oi = parseFloat(oiItem.openInterest || '0');
+    const lastPrice = parseFloat(tickerItem.lastPrice || '0');
+    const oiValue = oi > 0 && lastPrice > 0 ? oi * lastPrice : 0;
+
     return {
       symbol: symbol.toUpperCase(),
       exchange: 'bybit',
-      openInterest: parseFloat(item.openInterest || '0'),
-      openInterestValue: 0,
-      timestamp: parseInt(item.timestamp || String(Date.now())),
+      openInterest: oi,
+      openInterestValue: oiValue,
+      timestamp: parseInt(oiItem.timestamp || String(Date.now())),
     };
   }
 

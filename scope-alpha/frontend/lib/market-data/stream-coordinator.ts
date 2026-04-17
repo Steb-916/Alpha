@@ -10,6 +10,8 @@ import { getMarketDataCache } from './cache';
 import { tryExchanges } from '../exchanges';
 import { TIER1_SYMBOLS, ALL_TRACKED_SYMBOLS } from '../exchanges/types';
 import type { SSEClient } from './ws-manager';
+import { getBybitLiquidationStream } from './bybit-ws';
+import { ENABLED_ASSETS } from '@/config/assets';
 
 class StreamCoordinator {
   private activeUnsubscribers: Map<string, () => void> = new Map();
@@ -53,6 +55,20 @@ class StreamCoordinator {
           } catch { /* client disconnected */ }
         }
       }, 15_000);
+
+      // Connect Bybit liquidation stream for all enabled assets. Runs in the
+      // same serverless instance lifecycle as the Binance WS manager — both
+      // come up when the first SSE client connects and wind down together.
+      try {
+        const bybitStream = getBybitLiquidationStream();
+        const bybitSymbols = ENABLED_ASSETS.map((a) => a.bybit);
+        bybitStream.connect(bybitSymbols);
+      } catch (err) {
+        console.warn(
+          '[StreamCoordinator] Bybit liquidation stream failed to start:',
+          (err as Error).message,
+        );
+      }
 
       this._initialized = true;
       console.log('[StreamCoordinator] Initialized with Tier 1 streams');
@@ -143,6 +159,7 @@ class StreamCoordinator {
     }
     this.activeUnsubscribers.clear();
     getWSManager().shutdown();
+    try { getBybitLiquidationStream().disconnect(); } catch { /* ignore */ }
     this._initialized = false;
   }
 

@@ -21,6 +21,11 @@
 import type { Liquidation } from '@/lib/exchanges/types';
 import { setCached } from '@/lib/cache/redis';
 import { LIQ_SNAPSHOT_KEY, type LiqSnapshot } from '@/lib/market/health';
+import { resolveAsset } from '@/config/assets';
+import {
+  persistLiquidationEvents,
+  type LiquidationEventInput,
+} from '@/lib/market/persistence';
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 const FLUSH_THROTTLE_MS = 5_000;
@@ -34,6 +39,57 @@ interface PerSymbolState {
 }
 
 const state = new Map<string, PerSymbolState>();
+
+// ─── Persistence batch queue ───────────────────────────────────────────────
+//
+// Accumulates liquidation events across all symbols and flushes to Postgres
+// every 5 seconds (or when the batch hits BATCH_MAX). Fire-and-forget; DB
+// errors are swallowed in the persistence helper so SSE + Redis keep working.
+const PERSIST_BATCH_INTERVAL_MS = 5_000;
+const PERSIST_BATCH_MAX = 100;
+let persistQueue: LiquidationEventInput[] = [];
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePersistFlush(): void {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void flushPersistQueue();
+  }, PERSIST_BATCH_INTERVAL_MS);
+}
+
+async function flushPersistQueue(): Promise<void> {
+  if (persistQueue.length === 0) return;
+  const batch = persistQueue;
+  persistQueue = [];
+  await persistLiquidationEvents(batch);
+}
+
+function enqueueForPersistence(liq: Liquidation): void {
+  // Resolve BTCUSDT-style pair back to the canonical app asset (BTC).
+  const cfg = resolveAsset(liq.symbol);
+  if (!cfg) return; // Unsupported asset — don't persist
+
+  persistQueue.push({
+    asset: cfg.symbol,
+    exchange: liq.exchange || 'unknown',
+    side: liq.side,
+    quantity: liq.quantity,
+    price: liq.price,
+    usdValue: notionalUsd(liq),
+    timestamp: new Date(liq.timestamp),
+  });
+
+  if (persistQueue.length >= PERSIST_BATCH_MAX) {
+    if (persistTimer) {
+      clearTimeout(persistTimer);
+      persistTimer = null;
+    }
+    void flushPersistQueue();
+  } else {
+    schedulePersistFlush();
+  }
+}
 
 function notionalUsd(liq: Liquidation): number {
   // Binance liquidation events give quantity in base currency and price in
@@ -73,9 +129,13 @@ async function flush(symbol: string): Promise<void> {
 }
 
 /**
- * Record one Binance liquidation event. Called from `ws-manager.subscribeLiquidation`.
+ * Record one liquidation event. Called from `ws-manager.subscribeLiquidation`
+ * (Binance) and `bybit-ws.ts` (Bybit). Fan-out:
+ *   1. In-memory rolling 24h window → Redis snapshot (real-time health score)
+ *   2. Persistence batch queue → Postgres (durable history for Quant Engine)
  */
 export function recordLiquidation(liq: Liquidation): void {
+  enqueueForPersistence(liq);
   const symbol = liq.symbol;
   let s = state.get(symbol);
   if (!s) {

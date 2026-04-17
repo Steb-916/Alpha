@@ -4,7 +4,7 @@
  * GET /api/cron/refresh-screener
  * Headers: Authorization: Bearer ${CRON_SECRET}
  *
- * Iterates SUPPORTED_ASSETS, fans out funding/OI/basis/ticker/sparkline
+ * Iterates ENABLED_ASSETS, fans out funding/OI/basis/ticker/sparkline
  * fetches in parallel (with Promise.allSettled), assembles a ScreenerRow[]
  * matching the app's existing internal shape, and writes to:
  *   - market:screener         (TTL 90s — slightly longer than the 60s cron
@@ -19,7 +19,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { SUPPORTED_ASSETS, type AssetConfig } from '@/config/assets';
+import { ENABLED_ASSETS, type AssetConfig } from '@/config/assets';
 import {
   aggregateBasis,
   aggregateFunding,
@@ -213,8 +213,8 @@ export async function GET(req: Request) {
   // Process assets in parallel batches of 5 to keep total exchange call
   // pressure manageable while still completing under maxDuration.
   const BATCH_SIZE = 5;
-  for (let i = 0; i < SUPPORTED_ASSETS.length; i += BATCH_SIZE) {
-    const batch = SUPPORTED_ASSETS.slice(i, i + BATCH_SIZE);
+  for (let i = 0; i < ENABLED_ASSETS.length; i += BATCH_SIZE) {
+    const batch = ENABLED_ASSETS.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(batch.map((a) => buildRow(a)));
     for (const r of results) {
       if (r.status === 'fulfilled') {
@@ -239,7 +239,7 @@ export async function GET(req: Request) {
 
   const elapsedMs = Date.now() - startTs;
   console.log(
-    `[refresh-screener] built ${rows.length}/${SUPPORTED_ASSETS.length} rows in ${elapsedMs}ms (${errors.length} errors)`,
+    `[refresh-screener] built ${rows.length}/${ENABLED_ASSETS.length} rows in ${elapsedMs}ms (${errors.length} errors)`,
   );
 
   return NextResponse.json({

@@ -25,6 +25,10 @@ import type {
 } from '@/lib/types';
 import { resolveAsset } from '@/config/assets';
 import { getCached, setCached } from '@/lib/cache/redis';
+import {
+  persistFundingSnapshot,
+  persistOISnapshot,
+} from '@/lib/market/persistence';
 
 // Singletons — these classes are stateless for REST so cheap to share.
 const binance = new BinanceConnector();
@@ -132,6 +136,36 @@ export async function aggregateFunding(symbol: string): Promise<FundingData> {
     byExchange.push({
       exchange: 'Bybit',
       rate: safeNumber(bybitCurrent.fundingRate),
+    });
+  }
+
+  // Fire-and-forget: persist a funding snapshot per exchange. Idempotent via
+  // @@unique(asset, exchange, timestamp) — repeated calls with the same
+  // funding-event timestamp are no-ops.
+  if (binanceCurrent && binanceCurrent.fundingTime) {
+    // The exchange connector strips indexPrice to keep the interface tight;
+    // fall back to markPrice as the best-effort index value. Phase 2 work can
+    // enrich binance.ts to preserve indexPrice end-to-end.
+    void persistFundingSnapshot({
+      asset: sym.app,
+      exchange: 'binance',
+      rate: safeNumber(binanceCurrent.fundingRate),
+      markPrice: safeNumber(binanceCurrent.markPrice),
+      indexPrice: safeNumber(binanceCurrent.markPrice),
+      timestamp: new Date(binanceCurrent.fundingTime),
+    });
+  }
+  if (bybitCurrent && bybitCurrent.nextFundingTime) {
+    // Bybit exposes only nextFundingTime on the ticker; the most recent past
+    // funding event is 8h before that.
+    const eightH = 8 * 60 * 60 * 1000;
+    void persistFundingSnapshot({
+      asset: sym.app,
+      exchange: 'bybit',
+      rate: safeNumber(bybitCurrent.fundingRate),
+      markPrice: safeNumber(bybitCurrent.markPrice),
+      indexPrice: safeNumber(bybitCurrent.markPrice), // best-effort fallback
+      timestamp: new Date(bybitCurrent.nextFundingTime - eightH),
     });
   }
 
@@ -243,6 +277,38 @@ export async function aggregateOI(symbol: string): Promise<OpenInterestData> {
   const byExchange: OpenInterestData['byExchange'] = [];
   if (binanceOI) byExchange.push({ exchange: 'Binance', value: binanceVal });
   if (bybitOI) byExchange.push({ exchange: 'Bybit', value: bybitVal });
+
+  // Fire-and-forget: persist hourly OI snapshot per exchange. The persistence
+  // helper floors to the hour so repeated calls within the same hour are no-ops.
+  const nowTs = new Date();
+  if (binanceOI) {
+    const binanceContracts = safeNumber(binanceOI.openInterest);
+    const binanceUsd = safeNumber(binanceOI.openInterestValue);
+    const binancePrice =
+      binanceUsd > 0 && binanceContracts > 0
+        ? binanceUsd / binanceContracts
+        : 0;
+    void persistOISnapshot({
+      asset: sym.app,
+      exchange: 'binance',
+      oi: binanceContracts,
+      oiUsd: binanceUsd || binanceContracts * binancePrice,
+      price: binancePrice,
+      timestamp: nowTs,
+    });
+  }
+  if (bybitOI) {
+    const bybitContracts = safeNumber(bybitOI.openInterest);
+    const bybitUsd = safeNumber(bybitOI.openInterestValue);
+    void persistOISnapshot({
+      asset: sym.app,
+      exchange: 'bybit',
+      oi: bybitContracts,
+      oiUsd: bybitUsd,
+      price: bybitUsd > 0 && bybitContracts > 0 ? bybitUsd / bybitContracts : 0,
+      timestamp: nowTs,
+    });
+  }
 
   return {
     symbol: sym.app,

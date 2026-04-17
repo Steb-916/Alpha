@@ -162,3 +162,67 @@ model AlertHistory {
 
   @@index([alertId, triggeredAt])
 }
+
+// ─── Phase 1: Historical market data ──────────────────────────────────────
+
+model FundingRateSnapshot {
+  id         String   @id @default(cuid())
+  asset      String
+  exchange   String
+  rate       Float
+  markPrice  Float
+  indexPrice Float
+  timestamp  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([asset, exchange, timestamp])
+  @@index([asset, timestamp])
+  @@index([asset, exchange, timestamp])
+}
+
+model OISnapshot {
+  id        String   @id @default(cuid())
+  asset     String
+  exchange  String
+  oi        Float
+  oiUsd     Float
+  price     Float
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([asset, exchange, timestamp])
+  @@index([asset, timestamp])
+}
+
+model LiquidationEvent {
+  id        String   @id @default(cuid())
+  asset     String
+  exchange  String
+  side      String // "long" | "short" — side of the position that was liquidated
+  quantity  Float
+  price     Float
+  usdValue  Float
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@index([asset, timestamp])
+  @@index([asset, exchange, timestamp])
+  @@index([timestamp])
+}
+
+model CandleHistory {
+  id        String   @id @default(cuid())
+  asset     String
+  exchange  String
+  timeframe String // "4h" | "1d"
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([asset, exchange, timeframe, timestamp])
+  @@index([asset, timeframe, timestamp])
+}

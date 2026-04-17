@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/refresh-screener",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/persist-candles",
+      "schedule": "0 1 * * *"
     }
   ]
 }

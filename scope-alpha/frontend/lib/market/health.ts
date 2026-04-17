@@ -15,6 +15,15 @@
  */
 
 import type { FundingData, OpenInterestData, BasisData, HealthScore } from '@/lib/types';
+import {
+  BASIS_BANDS,
+  DEFAULT_COMPONENT_SCORE,
+  DEFAULT_LIQUIDATION_SCORE,
+  FUNDING_Z_BANDS,
+  OI_CHANGE_BANDS,
+  REGIME_THRESHOLDS,
+  pickScore,
+} from '@/config/healthScore';
 
 export interface LiqSnapshot {
   longUsd: number;
@@ -29,28 +38,16 @@ export interface LiqSnapshot {
  * Funding score: extreme funding (|z| ≫ 0) is unhealthy. Healthy is z near 0.
  */
 export function scoreFunding(funding: FundingData | null | undefined): number {
-  if (!funding) return 12;
-  const z = Math.abs(funding.zScore || 0);
-  if (z < 0.5) return 25;
-  if (z < 1.0) return 22;
-  if (z < 1.5) return 17;
-  if (z < 2.0) return 11;
-  if (z < 3.0) return 5;
-  return 1;
+  if (!funding) return DEFAULT_COMPONENT_SCORE;
+  return pickScore(funding.zScore || 0, FUNDING_Z_BANDS);
 }
 
 /**
  * OI score: very stable OI is healthy; large 24h moves either way are not.
  */
 export function scoreOI(oi: OpenInterestData | null | undefined): number {
-  if (!oi) return 12;
-  const c = Math.abs(oi.change24h || 0);
-  if (c < 2) return 25;
-  if (c < 5) return 22;
-  if (c < 10) return 17;
-  if (c < 15) return 11;
-  if (c < 25) return 6;
-  return 2;
+  if (!oi) return DEFAULT_COMPONENT_SCORE;
+  return pickScore(oi.change24h || 0, OI_CHANGE_BANDS);
 }
 
 /**
@@ -58,9 +55,11 @@ export function scoreOI(oi: OpenInterestData | null | undefined): number {
  * Reads from a snapshot the SSE liquidation pipeline pushes into Redis.
  */
 export function scoreLiquidation(snap: LiqSnapshot | null | undefined): number {
-  if (!snap || (snap.longUsd === 0 && snap.shortUsd === 0)) return 15;
+  if (!snap || (snap.longUsd === 0 && snap.shortUsd === 0)) {
+    return DEFAULT_LIQUIDATION_SCORE;
+  }
   const total = snap.longUsd + snap.shortUsd;
-  if (total === 0) return 15;
+  if (total === 0) return DEFAULT_LIQUIDATION_SCORE;
   // 0.5 = perfectly balanced, 0 or 1 = fully one-sided.
   const longShare = snap.longUsd / total;
   const imbalance = Math.abs(longShare - 0.5) * 2; // 0..1
@@ -72,14 +71,8 @@ export function scoreLiquidation(snap: LiqSnapshot | null | undefined): number {
  * Basis score: basis near 0 is healthy; large premium or discount = stretched.
  */
 export function scoreBasis(basis: BasisData | null | undefined): number {
-  if (!basis) return 12;
-  const b = Math.abs(basis.currentBasis || 0);
-  if (b < 0.05) return 25;
-  if (b < 0.15) return 22;
-  if (b < 0.3) return 17;
-  if (b < 0.6) return 11;
-  if (b < 1.0) return 6;
-  return 2;
+  if (!basis) return DEFAULT_COMPONENT_SCORE;
+  return pickScore(basis.currentBasis || 0, BASIS_BANDS);
 }
 
 // ─── Composite ──────────────────────────────────────────────────────────────
@@ -102,10 +95,10 @@ export function computeHealthScore(args: {
   );
 
   let regime: HealthScore['regime'];
-  if (score < 25) regime = 'Risk Off';
-  else if (score < 40) regime = 'Cautious';
-  else if (score < 60) regime = 'Neutral';
-  else if (score < 80) regime = 'Risk On';
+  if (score < REGIME_THRESHOLDS.RISK_OFF) regime = 'Risk Off';
+  else if (score < REGIME_THRESHOLDS.CAUTIOUS) regime = 'Cautious';
+  else if (score < REGIME_THRESHOLDS.NEUTRAL) regime = 'Neutral';
+  else if (score < REGIME_THRESHOLDS.RISK_ON) regime = 'Risk On';
   else regime = 'Overheated';
 
   return {
