@@ -331,6 +331,48 @@ export interface GEXHistoryOutput {
   points: GEXHistoryPoint[];
 }
 
+// ─── Cascade Risk Overlay ──────────────────────────────────────────────────
+//
+// Combines GEX negative-gamma zones with the liquidation heatmap to flag
+// prices where dealer hedging would amplify moves into dense liquidation
+// clusters. Consumes cached outputs only — no Black-Scholes here.
+//
+// First-pass scope: negative gamma only. Positive-gamma pin zones (price
+// pinning near call walls co-located with liq clusters) are a known
+// extension — see components/volatility/CascadeRiskView.tsx for the TODO.
+
+export type CascadeRiskLevel = 'low' | 'moderate' | 'elevated' | 'critical';
+export type CascadeStaleness = 'fresh' | 'stale';
+
+export interface CascadeRiskZone {
+  priceLevel: number;
+  gexContribution: number;
+  liqIntensity: number;
+  liqSide: 'long' | 'short';
+  cascadeRisk: CascadeRiskLevel;
+  distanceFromSpotPct: number;
+}
+
+export interface CascadeRiskSummary {
+  criticalCount: number;
+  elevatedCount: number;
+  moderateCount: number;
+  lowCount: number;
+  topZonePrice: number | null;
+  topZoneDistancePct: number | null;
+}
+
+export interface CascadeRiskOverlay {
+  asset: string;
+  computedAt: string;
+  spot: number;
+  gammaFlip: number | null;
+  zones: CascadeRiskZone[];
+  overallRisk: CascadeRiskLevel;
+  summary: CascadeRiskSummary;
+  staleness: CascadeStaleness;
+}
+
 // ─── Re-exports for convenience ────────────────────────────────────────────
 
 export type { OptionsChainEntry };

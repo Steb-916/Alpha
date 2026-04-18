@@ -21,7 +21,7 @@ OptionType = Literal["call", "put"]
 
 class VolSurfaceOption(BaseModel):
     strike: float
-    expiry_days: int
+    expiry_days: float
     option_type: OptionType
     mark_iv: float
     bid_iv: Optional[float] = None
@@ -32,7 +32,7 @@ class VolSurfaceOption(BaseModel):
 
 class VolSurfaceExpiration(BaseModel):
     date: str
-    days_to_expiry: int
+    days_to_expiry: float
 
 
 class VolSurfaceInput(BaseModel):
@@ -56,7 +56,7 @@ class RNDInput(BaseModel):
     asset: str
     spot_price: float
     expiry_date: str
-    expiry_days: int
+    expiry_days: float
     risk_free_rate: float = 0.0
     options: list[RNDOption]
 
@@ -94,7 +94,7 @@ class VRPInput(BaseModel):
 
 class SkewOption(BaseModel):
     strike: float
-    expiry_days: int
+    expiry_days: float
     option_type: OptionType
     mark_iv: float
     open_interest: float

@@ -16,6 +16,7 @@ import { GEXHeatmap } from "@/components/volatility/GEXHeatmap";
 import { DEXView } from "@/components/volatility/DEXView";
 import { VannaCharmView } from "@/components/volatility/VannaCharmView";
 import { FlowScannerView } from "@/components/volatility/FlowScannerView";
+import { CascadeRiskView } from "@/components/volatility/CascadeRiskView";
 
 const TABS = [
   { label: "Overview", value: "overview" },
@@ -27,6 +28,7 @@ const TABS = [
   { label: "VRP", value: "vrp" },
   { label: "GEX", value: "gex" },
   { label: "GEX Heatmap", value: "gex_heatmap" },
+  { label: "Cascade Risk", value: "cascade_risk" },
   { label: "DEX", value: "dex" },
   { label: "Vanna / Charm", value: "vanna_charm" },
   { label: "Flow", value: "flow" },
@@ -91,6 +93,7 @@ function VolatilityInner() {
         {view === "vrp" && <VRPView asset={asset} />}
         {view === "gex" && <GEXView asset={asset} />}
         {view === "gex_heatmap" && <GEXHeatmap asset={asset} />}
+        {view === "cascade_risk" && <CascadeRiskView asset={asset} />}
         {view === "dex" && <DEXView asset={asset} />}
         {view === "vanna_charm" && <VannaCharmView asset={asset} />}
         {view === "flow" && <FlowScannerView asset={asset} />}

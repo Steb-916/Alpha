@@ -119,7 +119,7 @@ def _empty_rnd(inp: RNDInput, reason: str) -> RNDOutput:
     return RNDOutput(
         asset=inp.asset,
         expiry_date=inp.expiry_date,
-        expiry_days=inp.expiry_days,
+        expiry_days=int(inp.expiry_days),
         spot_price=inp.spot_price,
         density=[],
         statistics=RNDStatistics(
@@ -243,7 +243,7 @@ async def rnd_endpoint(inp: RNDInput) -> RNDOutput:
     return RNDOutput(
         asset=inp.asset,
         expiry_date=inp.expiry_date,
-        expiry_days=inp.expiry_days,
+        expiry_days=int(inp.expiry_days),
         spot_price=inp.spot_price,
         density=density_points,
         statistics=RNDStatistics(
