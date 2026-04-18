@@ -23,6 +23,8 @@ import type {
   VolConeOutput,
   VolSurfaceInput,
   VolSurfaceOutput,
+  GreeksExposureInput,
+  VannaCharmExposure,
 } from '@/types/options';
 
 class QuantEngineClient {
@@ -59,6 +61,16 @@ class QuantEngineClient {
 
   async computeSkew(input: SkewInput): Promise<SkewOutput | null> {
     return this.post<SkewInput, SkewOutput>('/skew', input);
+  }
+
+  /** Forward-compatible stub — returns null until QE implements /greeks-exposure. */
+  async computeGreeksExposure(
+    input: GreeksExposureInput,
+  ): Promise<VannaCharmExposure | null> {
+    return this.post<GreeksExposureInput, VannaCharmExposure>(
+      '/greeks-exposure',
+      input,
+    );
   }
 
   private async post<I, O>(path: string, input: I): Promise<O | null> {

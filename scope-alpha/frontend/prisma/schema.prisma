@@ -315,3 +315,41 @@ model IVSnapshot {
   @@unique([asset, timestamp])
   @@index([asset, timestamp])
 }
+
+// ─── Phase 4: Options Microstructure ─────────────────────────────────────────
+
+/// Hourly GEX snapshots for the GEX heatmap historical view.
+model GreeksExposureSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+  /// GexStrike[] serialized as JSON: [{strike, netGex, callGex, putGex}]
+  gexData     Json
+  gammaFlip   Float?
+  totalNetGex Float
+  spotPrice   Float
+
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}
+
+/// Options flow events derived from hourly chain volume deltas.
+model OptionsFlowEvent {
+  id             String   @id @default(cuid())
+  asset          String
+  instrumentName String
+  expiration     DateTime
+  strike         Float
+  optionType     String   // "call" | "put"
+  premiumUsd     Float
+  size           Float
+  unusualScore   Float
+
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([asset, timestamp])
+  @@index([asset, unusualScore, timestamp])
+}

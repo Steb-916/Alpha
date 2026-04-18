@@ -182,3 +182,138 @@ export interface SkewOutput {
 
 export type { OptionsChainEntry };
 export type { ChainAggregate, ExpirationSummary } from '@/lib/options/aggregate';
+
+// ─── Phase 4: Options Microstructure ──────────────────────────────────────
+
+export interface GexStrike {
+  strike: number;
+  netGex: number;
+  callGex: number;
+  putGex: number;
+}
+
+export interface GexByStrike {
+  asset: string;
+  timestamp: string;
+  spot: number;
+  gammaFlip: number | null;
+  netGammaRegime: 'positive' | 'negative';
+  totalNetGex: number;
+  strikes: GexStrike[];
+}
+
+export interface DexStrike {
+  strike: number;
+  netDex: number;
+  callDex: number;
+  putDex: number;
+}
+
+export interface DexByStrike {
+  asset: string;
+  timestamp: string;
+  spot: number;
+  totalNetDex: number;
+  deltaRegime: 'call-heavy' | 'put-heavy' | 'balanced';
+  strikes: DexStrike[];
+}
+
+export interface VannaCharmStrike {
+  strike: number;
+  expiration: string;
+  daysToExpiry: number;
+  vanna: number;
+  charm: number;
+}
+
+export interface VannaCharmExposure {
+  asset: string;
+  timestamp: string;
+  spot: number;
+  strikes: VannaCharmStrike[];
+  vannaNet: number;
+  charmNet: number;
+}
+
+export interface MaxPainExpiration {
+  expiration: string;
+  daysToExpiry: number;
+  maxPain: number | null;
+  highestOiStrike: number | null;
+  highestOiValue: number;
+  spotDistancePct: number | null;
+  pinRiskScore: number;
+}
+
+export interface MaxPainPinRisk {
+  asset: string;
+  timestamp: string;
+  spot: number;
+  expirations: MaxPainExpiration[];
+}
+
+export interface OptionsFlowEvent {
+  id: string;
+  timestamp: string;
+  asset: string;
+  expiration: string;
+  strike: number;
+  optionType: 'call' | 'put';
+  side: 'buy' | 'sell' | 'unknown';
+  size: number;
+  premiumUsd: number;
+  unusualScore: number;
+  instrumentName: string;
+}
+
+export interface OptionsFlow {
+  asset: string;
+  window: string;
+  generatedAt: string;
+  events: OptionsFlowEvent[];
+  netCallPremium: number;
+  netPutPremium: number;
+  netPremiumFlow: number;
+}
+
+export interface CascadeRiskZone {
+  priceLevel: number;
+  gexContribution: number;
+  liqIntensity: number;
+  cascadeRisk: 'critical' | 'elevated' | 'moderate' | 'low';
+  side: 'long' | 'short';
+}
+
+export interface CascadeRiskOverlay {
+  asset: string;
+  timestamp: string;
+  spot: number;
+  gammaFlip: number | null;
+  zones: CascadeRiskZone[];
+  overallRisk: 'critical' | 'elevated' | 'moderate' | 'low';
+  narrative: string;
+}
+
+export interface GreeksExposureInput {
+  asset: string;
+  spot: number;
+  chain: Array<{
+    strike: number;
+    daysToExpiry: number;
+    optionType: 'call' | 'put';
+    markIV: number;
+    openInterest: number;
+  }>;
+}
+
+export interface GexHeatmapSnapshot {
+  timestamp: string;
+  strikes: GexStrike[];
+}
+
+export interface GexHeatmapData {
+  asset: string;
+  lookback: string;
+  dataPoints: number;
+  snapshots: GexHeatmapSnapshot[];
+}

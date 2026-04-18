@@ -357,6 +357,76 @@ export async function persistHealthScoreSnapshot(
   }
 }
 
+// ─── Phase 4: Options Microstructure ─────────────────────────────────────────
+
+export interface GreeksExposureSnapshotInput {
+  asset: string;
+  gexData: unknown; // GexStrike[] stored as JSON
+  gammaFlip: number | null;
+  totalNetGex: number;
+  spotPrice: number;
+  timestamp: Date;
+}
+
+export async function persistGreeksExposureSnapshot(
+  input: GreeksExposureSnapshotInput,
+): Promise<void> {
+  try {
+    const ts = floorToHour(input.timestamp);
+    await prisma.greeksExposureSnapshot.upsert({
+      where: { asset_timestamp: { asset: input.asset, timestamp: ts } },
+      create: {
+        asset: input.asset,
+        gexData: input.gexData as Prisma.InputJsonValue,
+        gammaFlip: input.gammaFlip,
+        totalNetGex: input.totalNetGex,
+        spotPrice: input.spotPrice,
+        timestamp: ts,
+      },
+      update: {
+        gexData: input.gexData as Prisma.InputJsonValue,
+        gammaFlip: input.gammaFlip,
+        totalNetGex: input.totalNetGex,
+        spotPrice: input.spotPrice,
+      },
+    });
+  } catch (err) {
+    log('warn', 'persistGreeksExposureSnapshot failed', {
+      metadata: { asset: input.asset, error: (err as Error).message },
+    });
+  }
+}
+
+export interface OptionsFlowEventInput {
+  asset: string;
+  instrumentName: string;
+  expiration: Date;
+  strike: number;
+  optionType: 'call' | 'put';
+  premiumUsd: number;
+  size: number;
+  unusualScore: number;
+  timestamp: Date;
+}
+
+export async function persistOptionsFlowEvents(
+  events: OptionsFlowEventInput[],
+): Promise<number> {
+  if (events.length === 0) return 0;
+  try {
+    const result = await prisma.optionsFlowEvent.createMany({
+      data: events,
+      skipDuplicates: true,
+    });
+    return result.count;
+  } catch (err) {
+    log('warn', 'persistOptionsFlowEvents failed', {
+      metadata: { count: events.length, error: (err as Error).message },
+    });
+    return 0;
+  }
+}
+
 export async function persistCandleHistory(
   candles: CandleHistoryInput[],
 ): Promise<number> {

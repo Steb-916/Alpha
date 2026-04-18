@@ -33,11 +33,18 @@ import {
   persistOptionsChainSnapshot,
   persistVolSurfaceSnapshot,
   persistIVSnapshot,
+  persistGreeksExposureSnapshot,
+  persistOptionsFlowEvents,
   type OptionsChainSnapshotInput,
+  type OptionsFlowEventInput,
 } from '@/lib/market/persistence';
 import { quantEngine } from '@/lib/quant-engine';
+import { computeGexByStrike, computeDexByStrike, computeVannaCharm } from '@/lib/options/greeks-exposure';
+import { computeMaxPainPinRisk } from '@/lib/options/pin-risk';
+import { computeFlowFromChainDelta } from '@/lib/options/flow-scanner';
 import type {
   DeribitCurrency,
+  OptionsChainEntry,
 } from '@/lib/exchanges/deribit-types';
 import type {
   RNDInput,
@@ -106,6 +113,88 @@ async function processAsset(currency: DeribitCurrency): Promise<AssetResult> {
       writeFreshAndStale(`options:chain:${currency}`, chain, CACHE_TTL),
       writeFreshAndStale(`options:aggregate:${currency}`, aggregate, CACHE_TTL),
     ]);
+
+    // Step 3b: Compute GEX / DEX / Vanna-Charm from BS model and cache
+    const gex = computeGexByStrike(chain);
+    const dex = computeDexByStrike(chain);
+    const vannaCharm = computeVannaCharm(chain);
+    await Promise.all([
+      writeFreshAndStale(`options:gex:${currency}`, gex, CACHE_TTL),
+      writeFreshAndStale(`options:dex:${currency}`, dex, CACHE_TTL),
+      writeFreshAndStale(`options:vanna-charm:${currency}`, vannaCharm, CACHE_TTL),
+    ]);
+
+    // Step 3c: Max Pain / Pin Risk
+    const maxPainPinRisk = computeMaxPainPinRisk(chain);
+    await writeFreshAndStale(
+      `options:max-pain-pin-risk:${currency}`,
+      maxPainPinRisk,
+      CACHE_TTL,
+    );
+
+    // Step 3d: Persist GEX snapshot for heatmap history
+    await persistGreeksExposureSnapshot({
+      asset: currency,
+      gexData: gex.strikes,
+      gammaFlip: gex.gammaFlip,
+      totalNetGex: gex.totalNetGex,
+      spotPrice: gex.spot,
+      timestamp: now,
+    });
+
+    // Step 3e: Options flow — diff against last hourly DB snapshot
+    const prevSnapshotRows = await prisma.optionsChainSnapshot
+      .findMany({
+        where: { asset: currency, timestamp: { lt: now } },
+        orderBy: { timestamp: 'desc' },
+        take: 1000,
+      })
+      .catch(() => []);
+
+    if (prevSnapshotRows.length > 0) {
+      const prevChain: OptionsChainEntry[] = prevSnapshotRows.map((r) => ({
+        asset: r.asset,
+        instrumentName: r.instrumentName,
+        strike: r.strike,
+        expirationDate: new Date(r.expiration),
+        daysToExpiry: Math.round(
+          (new Date(r.expiration).getTime() - now.getTime()) / 86_400_000,
+        ),
+        optionType: r.optionType as 'call' | 'put',
+        markPrice: r.markPrice,
+        markIV: r.markIV,
+        bidIV: r.bidIV,
+        askIV: r.askIV,
+        underlyingPrice: r.underlyingPrice,
+        openInterest: r.openInterest,
+        volume24h: r.volume24h,
+        delta: r.delta,
+        gamma: r.gamma,
+        vega: r.vega,
+        theta: r.theta,
+      }));
+
+      const flow = computeFlowFromChainDelta(chain, prevChain);
+      await writeFreshAndStale(`options:flow:${currency}`, flow, CACHE_TTL);
+
+      // Persist events with unusualScore > 30
+      const unusualEvents: OptionsFlowEventInput[] = flow.events
+        .filter((e) => e.unusualScore > 30)
+        .map((e) => ({
+          asset: currency,
+          instrumentName: e.instrumentName,
+          expiration: new Date(e.expiration),
+          strike: e.strike,
+          optionType: e.optionType,
+          premiumUsd: e.premiumUsd,
+          size: e.size,
+          unusualScore: e.unusualScore,
+          timestamp: now,
+        }));
+      if (unusualEvents.length > 0) {
+        await persistOptionsFlowEvents(unusualEvents);
+      }
+    }
 
     // Step 4: persist chain snapshot (bulk, idempotent)
     const now = new Date();
