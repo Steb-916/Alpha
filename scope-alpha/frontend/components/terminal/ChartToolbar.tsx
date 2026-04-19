@@ -1,7 +1,10 @@
 "use client";
 
-import { Flame, Activity, TrendingUp } from "lucide-react";
+import { Flame, Activity, TrendingUp, ArrowLeftRight } from "lucide-react";
 import { useChartToolbar } from "@/lib/chartToolbarStore";
+import { useAppStore } from "@/lib/store";
+
+const NETFLOW_ASSETS = new Set(["BTC", "ETH"]);
 
 interface ToggleProps {
   active: boolean;
@@ -33,10 +36,14 @@ export function ChartToolbar() {
     showHeatmap,
     showCVD,
     showDivergences,
+    showExchangeNetflow,
     toggleHeatmap,
     toggleCVD,
     toggleDivergences,
+    toggleExchangeNetflow,
   } = useChartToolbar();
+  const selectedAsset = useAppStore((s) => s.selectedAsset);
+  const netflowSupported = NETFLOW_ASSETS.has(selectedAsset);
 
   return (
     <div className="flex items-center gap-2">
@@ -58,6 +65,14 @@ export function ChartToolbar() {
         icon={<TrendingUp size={12} strokeWidth={1.75} />}
         label="Divergences"
       />
+      {netflowSupported && (
+        <Toggle
+          active={showExchangeNetflow}
+          onClick={toggleExchangeNetflow}
+          icon={<ArrowLeftRight size={12} strokeWidth={1.75} />}
+          label="Netflow"
+        />
+      )}
     </div>
   );
 }

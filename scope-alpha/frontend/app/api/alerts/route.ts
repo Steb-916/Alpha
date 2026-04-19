@@ -26,6 +26,12 @@ const ALERT_TYPES = [
   "gex_regime_change",
   "flow_anomaly",
   "pin_risk_high",
+  // Phase 5 Slice 3 — on-chain synthesis alerts
+  "onchain_flow_regime_change",
+  "mvrv_regime_change",
+  "whale_large_transfer",
+  // Phase 6 Slice 1 — regime classifier
+  "regime_change",
 ] as const;
 const CONDITIONS = [
   "above",
@@ -33,6 +39,10 @@ const CONDITIONS = [
   "crosses_above",
   "crosses_below",
   "change_exceeds",
+  // Phase 5 Slice 3 — regime transitions. Alert fires iff the observed
+  // regime differs from the durably-stored previous regime. No numeric
+  // threshold comparison; alert.value is ignored.
+  "changed",
 ] as const;
 const DELIVERY_METHODS = ["in_app", "email", "telegram", "webhook"] as const;
 

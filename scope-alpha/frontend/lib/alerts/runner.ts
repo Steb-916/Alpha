@@ -30,43 +30,70 @@ export async function runAlertsForAsset(
         value: true,
         asset: true,
         lastTriggered: true,
+        lastObservedState: true,
       },
     });
 
     for (const alert of alerts) {
       try {
-        if (!shouldFire({ lastTriggered: alert.lastTriggered })) continue;
-
         const lite: AlertLite = {
           id: alert.id,
           type: alert.type,
           condition: alert.condition,
           value: alert.value,
           asset: alert.asset,
+          lastObservedState: alert.lastObservedState,
         };
-        const result = await evaluateAlert(lite, ctx);
-        if (!result.triggered) continue;
 
-        await prisma.$transaction([
-          prisma.alertHistory.create({
-            data: {
-              alertId: alert.id,
-              asset: alert.asset,
-              type: alert.type,
-              condition: alert.condition,
-              threshold: alert.value,
-              actualValue: result.actualValue,
-            },
-          }),
-          prisma.alert.update({
+        // Slice 3 state-seeding path: even when shouldFire throttles us, we
+        // still want to evaluate so that first-observation state seeding
+        // (regime-change alerts) happens during the cron's throttle window.
+        // evaluator doesn't fire in the null-seed case, so this is safe.
+        const result = await evaluateAlert(lite, ctx);
+
+        // Throttle check happens AFTER eval so we can persist state advances
+        // (lastObservedState) even during throttle windows. We only suppress
+        // the fire + AlertHistory write when throttled.
+        const throttleAllowsFire = shouldFire({
+          lastTriggered: alert.lastTriggered,
+        });
+        const shouldPersistState =
+          result.nextObservedState !== undefined &&
+          result.nextObservedState !== alert.lastObservedState;
+
+        if (result.triggered && throttleAllowsFire) {
+          await prisma.$transaction([
+            prisma.alertHistory.create({
+              data: {
+                alertId: alert.id,
+                asset: alert.asset,
+                type: alert.type,
+                condition: alert.condition,
+                threshold: alert.value,
+                actualValue: result.actualValue,
+              },
+            }),
+            prisma.alert.update({
+              where: { id: alert.id },
+              data: {
+                lastTriggered: new Date(),
+                triggerCount: { increment: 1 },
+                ...(shouldPersistState
+                  ? { lastObservedState: result.nextObservedState }
+                  : {}),
+              },
+            }),
+          ]);
+          firedCount++;
+        } else if (shouldPersistState) {
+          // Not firing (either not triggered or throttled), but the
+          // durable state still needs to advance. Applies to first-observation
+          // seeding of regime-change alerts.
+          await prisma.alert.update({
             where: { id: alert.id },
-            data: {
-              lastTriggered: new Date(),
-              triggerCount: { increment: 1 },
-            },
-          }),
-        ]);
-        firedCount++;
+            data: { lastObservedState: result.nextObservedState },
+          });
+        }
       } catch (err) {
         log('warn', 'alert fire failed', {
           metadata: {

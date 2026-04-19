@@ -30,6 +30,21 @@ from .core.density import build_density
 from .core.filters import QuoteFilter, filter_quotes
 from .core.forward import infer_forward_pcp
 from .core.greeks import classify_term_structure, compute_expiry_skew
+from .core.onchain import (
+    FlowRegimePoint,
+    MVRVPoint,
+    compute_flow_regime,
+    compute_mvrv_z,
+    now_iso_utc,
+)
+from .core.regime import (
+    RegimeFeatureVector,
+    classify_with_context,
+)
+from .core.forward_returns import (
+    ForwardReturnObservation,
+    compute_forward_returns,
+)
 from .core.realized_vol import (
     point_realized_vol,
     rolling_realized_vol,
@@ -37,6 +52,10 @@ from .core.realized_vol import (
 from .core.statistics import compute_stats, prob_above_strike, prob_below_strike
 from .core.surface import build_surface
 from .models.inputs import (
+    FlowRegimeInput,
+    ForwardReturnsInput,
+    MVRVInput,
+    RegimeClassifyInput,
     RNDInput,
     SkewInput,
     VolConeInput,
@@ -46,6 +65,15 @@ from .models.inputs import (
 from .models.outputs import (
     ATMByExpiry,
     DensityPoint,
+    FeatureSupportOutput,
+    FlowRegimeOutput,
+    ForwardReturnDistributionOutput,
+    HorizonStatOutput,
+    MVRVCurrent,
+    MVRVForwardReturns,
+    MVRVOutput,
+    MVRVSeriesPointOutput,
+    RegimeClassificationOutput,
     RNDConfidence,
     RNDOutput,
     RNDStatistics,
@@ -526,4 +554,220 @@ async def vrp_endpoint(inp: VRPInput) -> VRPOutput:
         assessment=assessment,
         mean_vrp=mean,
         std_vrp=std,
+    )
+
+
+# ─── /onchain/mvrv — Phase 5 MVRV z-score ──────────────────────────────────
+
+
+def _empty_mvrv(inp: MVRVInput) -> MVRVOutput:
+    """Structurally-valid empty response. TS client maps 200 with this shape
+    → usable-but-empty UI; 4xx/5xx → null → UnavailableBanner."""
+    return MVRVOutput(
+        asset=inp.asset,
+        computed_at=now_iso_utc(),
+        lookback_days=inp.lookback_days,
+        current=MVRVCurrent(
+            mvrv=0.0,
+            z_score=0.0,
+            regime="fair",
+            historical_percentile=0.0,
+            interpretation="Insufficient history to compute a meaningful z-score.",
+            forward_return_distribution=None,
+        ),
+        series=[],
+    )
+
+
+@app.post(
+    "/onchain/mvrv",
+    response_model=MVRVOutput,
+    dependencies=[Depends(require_api_key)],
+)
+async def mvrv_endpoint(inp: MVRVInput) -> MVRVOutput:
+    if not inp.series:
+        return _empty_mvrv(inp)
+
+    points = [MVRVPoint(timestamp=p.timestamp, mvrv=p.mvrv) for p in inp.series]
+    result = compute_mvrv_z(points, inp.lookback_days)
+    if result is None:
+        return _empty_mvrv(inp)
+
+    fwd = None
+    if result.forward_return_distribution is not None:
+        fwd = MVRVForwardReturns(
+            median_90d=result.forward_return_distribution.median_90d,
+            p25_90d=result.forward_return_distribution.p25_90d,
+            p75_90d=result.forward_return_distribution.p75_90d,
+        )
+
+    return MVRVOutput(
+        asset=inp.asset,
+        computed_at=now_iso_utc(),
+        lookback_days=inp.lookback_days,
+        current=MVRVCurrent(
+            mvrv=result.current_mvrv,
+            z_score=result.current_z_score,
+            regime=result.current_regime,
+            historical_percentile=result.historical_percentile,
+            interpretation=result.interpretation,
+            forward_return_distribution=fwd,
+        ),
+        series=[
+            MVRVSeriesPointOutput(
+                timestamp=s.timestamp,
+                mvrv=s.mvrv,
+                z_score=s.z_score,
+                regime=s.regime,
+            )
+            for s in result.series
+        ],
+    )
+
+
+# ─── /onchain/flow-regime — Phase 5 exchange flow regime ────────────────────
+
+
+def _empty_flow_regime(inp: FlowRegimeInput) -> FlowRegimeOutput:
+    return FlowRegimeOutput(
+        asset=inp.asset,
+        computed_at=now_iso_utc(),
+        regime="neutral",
+        regime_confidence=0.0,
+        net_flow_7d_usd=0.0,
+        net_flow_30d_usd=0.0,
+        baseline_net_flow_90d_usd=0.0,
+        interpretation="Insufficient history to classify flow regime.",
+        historical_regime_distribution={
+            "accumulation": 0.0,
+            "distribution": 0.0,
+            "neutral": 1.0,
+        },
+    )
+
+
+@app.post(
+    "/onchain/flow-regime",
+    response_model=FlowRegimeOutput,
+    dependencies=[Depends(require_api_key)],
+)
+async def flow_regime_endpoint(inp: FlowRegimeInput) -> FlowRegimeOutput:
+    if not inp.series:
+        return _empty_flow_regime(inp)
+
+    points = [
+        FlowRegimePoint(timestamp=p.timestamp, net_flow_usd=p.net_flow_usd)
+        for p in inp.series
+    ]
+    result = compute_flow_regime(points)
+    if result is None:
+        return _empty_flow_regime(inp)
+
+    return FlowRegimeOutput(
+        asset=inp.asset,
+        computed_at=now_iso_utc(),
+        regime=result.regime,
+        regime_confidence=result.regime_confidence,
+        net_flow_7d_usd=result.net_flow_7d_usd,
+        net_flow_30d_usd=result.net_flow_30d_usd,
+        baseline_net_flow_90d_usd=result.baseline_net_flow_90d_usd,
+        interpretation=result.interpretation,
+        historical_regime_distribution=result.historical_regime_distribution,
+    )
+
+
+# ─── /regime/classify — Phase 6 Slice 1 regime classification ──────────────
+
+
+@app.post(
+    "/regime/classify",
+    response_model=RegimeClassificationOutput,
+    dependencies=[Depends(require_api_key)],
+)
+async def regime_classify_endpoint(inp: RegimeClassifyInput) -> RegimeClassificationOutput:
+    fv_in = inp.feature_vector
+    fv = RegimeFeatureVector(
+        asset=fv_in.asset,
+        timestamp=fv_in.timestamp,
+        funding_percentile_30d=fv_in.funding_percentile_30d,
+        oi_change_7d=fv_in.oi_change_7d,
+        liquidation_intensity_24h=fv_in.liquidation_intensity_24h,
+        basis_percentile=fv_in.basis_percentile,
+        health_score=fv_in.health_score,
+        mvrv_regime=fv_in.mvrv_regime,  # type: ignore[arg-type]
+        mvrv_z_score=fv_in.mvrv_z_score,
+        iv_percentile=fv_in.iv_percentile,
+        skew_25d=fv_in.skew_25d,
+        vrp_sign=fv_in.vrp_sign,  # type: ignore[arg-type]
+        gex_regime=fv_in.gex_regime,  # type: ignore[arg-type]
+        flow_regime=fv_in.flow_regime,  # type: ignore[arg-type]
+        whale_intensity_24h=fv_in.whale_intensity_24h,
+    )
+
+    result = classify_with_context(
+        fv,
+        prev_raw=inp.prev_raw_classification,
+        prev_committed=inp.prev_regime,
+    )
+
+    return RegimeClassificationOutput(
+        asset=inp.asset,
+        raw_classification=result.raw_classification,
+        committed_regime=result.committed_regime,
+        regime_changed=result.regime_changed,
+        confidence=result.confidence,
+        feature_support=FeatureSupportOutput(
+            supporting=result.feature_support.supporting,
+            neutral=result.feature_support.neutral,
+            conflicting=result.feature_support.conflicting,
+        ),
+        reasoning=result.reasoning,
+    )
+
+
+# ─── /regime/forward-returns — Phase 6 Slice 1 distribution compute ────────
+
+
+@app.post(
+    "/regime/forward-returns",
+    response_model=ForwardReturnDistributionOutput,
+    dependencies=[Depends(require_api_key)],
+)
+async def regime_forward_returns_endpoint(
+    inp: ForwardReturnsInput,
+) -> ForwardReturnDistributionOutput:
+    observations = [
+        ForwardReturnObservation(
+            timestamp=o.timestamp, price=o.price, source=o.source
+        )
+        for o in inp.observations
+    ]
+    price_series = [(p.timestamp, p.price) for p in inp.full_price_series]
+
+    dist = compute_forward_returns(
+        asset=inp.asset,
+        regime=inp.regime,
+        observations=observations,
+        full_price_series=price_series,
+        lookback_years=inp.lookback_years,
+    )
+
+    return ForwardReturnDistributionOutput(
+        asset=dist.asset,
+        regime=dist.regime,
+        lookback_years=dist.lookback_years,
+        horizons=[
+            HorizonStatOutput(
+                horizon=h.horizon,
+                median_return=h.median_return,
+                p25_return=h.p25_return,
+                p75_return=h.p75_return,
+                sample_count=h.sample_count,
+            )
+            for h in dist.horizons
+        ],
+        total_observations=dist.total_observations,
+        source=dist.source,
+        observation_window_start=dist.observation_window_start,
+        observation_window_end=dist.observation_window_end,
     )

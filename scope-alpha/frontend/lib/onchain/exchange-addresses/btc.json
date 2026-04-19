@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "version": "2026-04-18",
+    "scope": "BTC exchange hot-wallet seed list for whale-transfer classification",
+    "sources": [
+      "https://bitinfocharts.com/top-100-richest-bitcoin-addresses.html",
+      "Public blockchain explorer exchange-tagged wallets (Mempool.space, Blockchair)",
+      "Exchange-published cold-wallet addresses (Binance, Coinbase)"
+    ],
+    "note": "Pragmatic seed. Hot-wallet addresses rotate; expect drift within months. Curate quarterly.",
+    "classification_behavior": "A whale transfer whose from or to matches any address below is labelled with the exchange; otherwise classified as wallet_to_wallet."
+  },
+  "exchanges": {
+    "binance": [
+      "bc1qm34lsc65zpw79lxes69zkqmk6ee3ewf0j77s3h",
+      "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",
+      "bc1qjasf9z3h7w3jspkhtgatgpyvvzgpa2wwd2lr0eh5tx44reyn2k7sfc27a4",
+      "bc1qzmatlnf5xkd2jhap5sfdn2my0p7xpvlks7l6d0lf5a7eaej78mlqhvv2jv",
+      "1NDyJtNTjmwk5xPNhjgAMu4HDHigtobu1s"
+    ],
+    "coinbase": [
+      "bc1qa5wkgaew2dkv56kfvj49j0av5nml45x9ek9hz6",
+      "3M219KR5vEneNb47ewrPfWyb5jQ2DjxRP6",
+      "1FxkfJQLJTXpW6QmxGT6uF9ubxEEL8uFJF",
+      "bc1qzw2exhk8qgh6t3m3rsdqzmwmqpkvh3lz32tjhh",
+      "3Kzh9qAqVWQhEsfQz7zEQL1EuSx5tyNLNS"
+    ],
+    "kraken": [
+      "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97",
+      "3FupZp77ySr7jwoLYEJ9mwzJpvoNBXsBnE",
+      "bc1qm7kp5jh4gq3t4qn8ze6pq7u4v3k3j0m2r3p9d2",
+      "14bZC8QFEFaHqo5KxpyS8N2MnGpLUuCJYi"
+    ],
+    "bitfinex": [
+      "bc1qgdjqv0av3q56jvd82tkdjpy7gdp9ut8tlqmgrpmv24sq90ecnvqqjwvw97",
+      "3D2oetdNuZUqQHPJmcMDDHYoqkyNVsFk9r",
+      "bc1qazcm763858nkj2dj986etajv6wquslv8uxwczt"
+    ],
+    "bitstamp": [
+      "3D2oetdNuZUqQHPJmcMDDHYoqkyNVsFk9r",
+      "385cR5DM96n1HvBDMzLHPYcw89fZAXULJP",
+      "bc1q4g9ejfyp5p97dq37d4jqvnxm4s2fa5c2jqhepn"
+    ],
+    "gemini": [
+      "39884E3j6KZj82FK4vcCrkUvWYL5MQaS3v",
+      "bc1qcq4yjsya8x8qtalkyq8urm6jn4wn6m4jlzkc7q"
+    ],
+    "bybit": [
+      "bc1qm34lsc65zpw79lxes69zkqmk6ee3ewf0j77s3h",
+      "3E27pNxeqPNZx4zKvKtGxeFxdB2yTzgSr7"
+    ],
+    "okx": [
+      "bc1qd4ysezhmypwty5dnw7c8nqy5h5nxg0xqsvaefd0qn5kq32vwnwqqgv4rzr",
+      "3LQUu4v9z6KNch71j7kbj8GPeAGUo1FW6a"
+    ]
+  }
+}

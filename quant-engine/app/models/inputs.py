@@ -104,3 +104,107 @@ class SkewInput(BaseModel):
     asset: str
     spot_price: float
     options: list[SkewOption]
+
+
+# ─── Phase 5 — On-chain derived metrics ───────────────────────────────────
+
+
+OnChainAsset = Literal["BTC", "ETH"]
+
+
+class MVRVSeriesPointInput(BaseModel):
+    timestamp: str
+    mvrv: float
+
+
+class MVRVInput(BaseModel):
+    asset: OnChainAsset
+    series: list[MVRVSeriesPointInput]
+    lookback_days: int = 1460
+
+
+class SOPRSeriesPointInput(BaseModel):
+    timestamp: str
+    sopr: float
+
+
+class SOPRInput(BaseModel):
+    asset: OnChainAsset
+    series: list[SOPRSeriesPointInput]
+
+
+class NVTSeriesPointInput(BaseModel):
+    timestamp: str
+    market_cap_usd: float
+    tx_volume_usd: float
+
+
+class NVTInput(BaseModel):
+    asset: OnChainAsset
+    series: list[NVTSeriesPointInput]
+
+
+class FlowRegimeSeriesPointInput(BaseModel):
+    timestamp: str
+    net_flow_usd: float
+
+
+class FlowRegimeInput(BaseModel):
+    asset: OnChainAsset
+    series: list[FlowRegimeSeriesPointInput]
+
+
+# ─── Phase 6 Slice 1 — Regime classifier ───────────────────────────────────
+
+
+RegimeLabelLiteral = Literal[
+    "trending_bull",
+    "trending_bear",
+    "range_bound",
+    "volatility_expansion",
+    "capitulation",
+]
+
+
+class RegimeFeatureVectorInput(BaseModel):
+    asset: str
+    timestamp: str
+    funding_percentile_30d: float
+    oi_change_7d: float
+    liquidation_intensity_24h: float
+    basis_percentile: float
+    health_score: float
+    mvrv_regime: Optional[str] = None
+    mvrv_z_score: Optional[float] = None
+    iv_percentile: Optional[float] = None
+    skew_25d: Optional[float] = None
+    vrp_sign: Optional[str] = None
+    gex_regime: Optional[str] = None
+    flow_regime: Optional[str] = None
+    whale_intensity_24h: Optional[float] = None
+
+
+class RegimeClassifyInput(BaseModel):
+    asset: str
+    feature_vector: RegimeFeatureVectorInput
+    prev_regime: Optional[RegimeLabelLiteral] = None
+    prev_raw_classification: Optional[RegimeLabelLiteral] = None
+
+
+class ForwardReturnsObservationInput(BaseModel):
+    timestamp: str
+    price: float
+    source: Literal["backfill", "live"]
+
+
+class ForwardReturnsPricePointInput(BaseModel):
+    timestamp: str
+    price: float
+
+
+class ForwardReturnsInput(BaseModel):
+    asset: str
+    regime: RegimeLabelLiteral
+    observations: list[ForwardReturnsObservationInput]
+    full_price_series: list[ForwardReturnsPricePointInput]
+    lookback_years: int = 2

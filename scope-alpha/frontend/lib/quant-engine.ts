@@ -24,6 +24,52 @@ import type {
   VolSurfaceInput,
   VolSurfaceOutput,
 } from '@/types/options';
+import type {
+  FlowRegimeOutput,
+  MVRVOutput,
+  NVTOutput,
+  OnChainAsset,
+  SOPROutput,
+} from '@/types/onchain';
+import type {
+  ForwardReturnDistribution,
+  ForwardReturnsInput,
+  RegimeClassification,
+  RegimeClassifyInput,
+} from '@/types/regime';
+
+// ─── On-chain request shapes (snake_case — matches Pydantic) ────────────────
+// Python side lives in quant-engine/app/models/inputs.py — mirror carefully.
+
+export interface MVRVSeriesInput {
+  timestamp: string;
+  mvrv: number;
+}
+
+export interface MVRVInput {
+  asset: OnChainAsset;
+  series: MVRVSeriesInput[];
+  lookback_days: number;
+}
+
+export interface SOPRInput {
+  asset: OnChainAsset;
+  series: Array<{ timestamp: string; sopr: number }>;
+}
+
+export interface NVTInput {
+  asset: OnChainAsset;
+  series: Array<{
+    timestamp: string;
+    market_cap_usd: number;
+    tx_volume_usd: number;
+  }>;
+}
+
+export interface FlowRegimeInput {
+  asset: OnChainAsset;
+  series: Array<{ timestamp: string; net_flow_usd: number }>;
+}
 
 class QuantEngineClient {
   readonly configured: boolean;
@@ -59,6 +105,49 @@ class QuantEngineClient {
 
   async computeSkew(input: SkewInput): Promise<SkewOutput | null> {
     return this.post<SkewInput, SkewOutput>('/skew', input);
+  }
+
+  // ─── Phase 5 — on-chain derived metrics ───────────────────────────────────
+
+  async computeMVRV(input: MVRVInput): Promise<MVRVOutput | null> {
+    return this.post<MVRVInput, MVRVOutput>('/onchain/mvrv', input);
+  }
+
+  async computeSOPR(input: SOPRInput): Promise<SOPROutput | null> {
+    return this.post<SOPRInput, SOPROutput>('/onchain/sopr', input);
+  }
+
+  async computeNVT(input: NVTInput): Promise<NVTOutput | null> {
+    return this.post<NVTInput, NVTOutput>('/onchain/nvt', input);
+  }
+
+  async computeFlowRegime(
+    input: FlowRegimeInput,
+  ): Promise<FlowRegimeOutput | null> {
+    return this.post<FlowRegimeInput, FlowRegimeOutput>(
+      '/onchain/flow-regime',
+      input,
+    );
+  }
+
+  // ─── Phase 6 Slice 1 — regime classifier ────────────────────────────────
+
+  async classifyRegime(
+    input: RegimeClassifyInput,
+  ): Promise<RegimeClassification | null> {
+    return this.post<RegimeClassifyInput, RegimeClassification>(
+      '/regime/classify',
+      input,
+    );
+  }
+
+  async forwardReturns(
+    input: ForwardReturnsInput,
+  ): Promise<ForwardReturnDistribution | null> {
+    return this.post<ForwardReturnsInput, ForwardReturnDistribution>(
+      '/regime/forward-returns',
+      input,
+    );
   }
 
   private async post<I, O>(path: string, input: I): Promise<O | null> {

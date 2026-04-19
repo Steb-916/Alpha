@@ -16,6 +16,7 @@ import { Watchlist } from "@/components/terminal/Watchlist";
 import { ChartToolbar } from "@/components/terminal/ChartToolbar";
 import { CVDPane } from "@/components/terminal/CVDPane";
 import { LiquidationHeatmap } from "@/components/terminal/LiquidationHeatmap";
+import { ExchangeNetflowOverlay } from "@/components/terminal/ExchangeNetflowOverlay";
 import { useChartToolbar } from "@/lib/chartToolbarStore";
 import { DataCell } from "@/components/ui/DataCell";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -275,6 +276,7 @@ export function OverviewView() {
         </div>
       </div>
       <CVDPaneGated />
+      <ExchangeNetflowPaneGated />
     </div>
   );
 }
@@ -284,4 +286,17 @@ function CVDPaneGated() {
   const showCVD = useChartToolbar((s) => s.showCVD);
   if (!showCVD) return null;
   return <CVDPane />;
+}
+
+/**
+ * Phase 5 Slice 2: exchange-netflow strip. Only mounts for BTC/ETH when the
+ * toolbar toggle is on. The overlay itself handles inert-mode (provider off,
+ * data missing) with a muted inline card — no full banner.
+ */
+function ExchangeNetflowPaneGated() {
+  const show = useChartToolbar((s) => s.showExchangeNetflow);
+  const selectedAsset = useAppStore((s) => s.selectedAsset);
+  if (!show) return null;
+  if (selectedAsset !== "BTC" && selectedAsset !== "ETH") return null;
+  return <ExchangeNetflowOverlay asset={selectedAsset} />;
 }

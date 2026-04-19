@@ -152,12 +152,35 @@ async function buildRow(
   }
   await Promise.allSettled(writes);
 
+  // Phase 5 Slice 3 + Phase 6 Slice 1: cross-domain context for health +
+  // alerts. Redis-only reads populated by the refresh-onchain + poll-whales
+  // + refresh-regime-convergence crons. When the caches are cold (first
+  // deploy, Quant Engine inert, etc.) everything stays null → health compute
+  // and alert evaluator degrade gracefully.
+  type OnChainSupplyEnvelope = import('@/types/onchain').OnChainSupplyResponse;
+  type OnChainFlowsEnvelope = import('@/types/onchain').OnChainFlowsResponse;
+  type WhaleRecord = import('@/types/onchain').WhaleTransactionRecord;
+  type RegimeEnvelope = import('@/types/regime').RegimeCurrentResponse;
+  const [onchainSupply, onchainFlows, recentWhaleTransfers, currentRegime] =
+    asset.symbol === 'BTC' || asset.symbol === 'ETH'
+      ? await Promise.all([
+          getCached<OnChainSupplyEnvelope>(`onchain:supply:${asset.symbol}`),
+          getCached<OnChainFlowsEnvelope>(`onchain:flows:${asset.symbol}`),
+          getCached<WhaleRecord[]>(`onchain:whales:recent:${asset.symbol}`),
+          getCached<RegimeEnvelope>(`regime:current:${asset.symbol}`),
+        ])
+      : [null, null, null, null];
+
   const health = computeHealthScore({
     symbol: asset.symbol,
     funding,
     oi,
     basis,
     liquidation: liqSnap,
+    onchain: {
+      mvrvRegime: onchainSupply?.mvrv?.current.regime ?? undefined,
+      flowRegime: onchainFlows?.regime?.regime ?? undefined,
+    },
   });
 
   await writeFreshAndStale(
@@ -255,6 +278,12 @@ async function buildRow(
       gammaRegime,
       flowAnomalyScore,
       pinRiskMax,
+      // Phase 5 Slice 3 — on-chain context (BTC/ETH only; null otherwise).
+      onchainSupply,
+      onchainFlows,
+      recentWhaleTransfers: recentWhaleTransfers ?? undefined,
+      // Phase 6 Slice 1 — current regime envelope (BTC/ETH only).
+      currentRegime,
     });
   }
 

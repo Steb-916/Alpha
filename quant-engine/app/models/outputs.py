@@ -11,7 +11,7 @@ non-2xx to null, which surfaces as an Unavailable banner in the UI.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -175,3 +175,144 @@ class SkewOutput(BaseModel):
     by_expiry: list[SkewByExpiry]
     term_structure: list[TermStructurePoint]
     term_structure_shape: TermStructureShape
+
+
+# ─── Phase 5 — On-chain derived metrics ───────────────────────────────────
+
+
+MVRVRegime = Literal["deep_value", "fair", "elevated", "euphoria"]
+SOPRState = Literal["profit_taking", "neutral", "capitulation", "recovery"]
+NVTRegimeT = Literal["cheap", "fair", "overvalued"]
+FlowRegimeT = Literal["accumulation", "distribution", "neutral"]
+
+
+class MVRVSeriesPointOutput(BaseModel):
+    timestamp: str
+    mvrv: float
+    z_score: float
+    regime: MVRVRegime
+
+
+class MVRVForwardReturns(BaseModel):
+    median_90d: float
+    p25_90d: float
+    p75_90d: float
+
+
+class MVRVCurrent(BaseModel):
+    mvrv: float
+    z_score: float
+    regime: MVRVRegime
+    historical_percentile: float
+    interpretation: str
+    forward_return_distribution: MVRVForwardReturns | None = None
+
+
+class MVRVOutput(BaseModel):
+    asset: str
+    computed_at: str
+    lookback_days: int
+    current: MVRVCurrent
+    series: list[MVRVSeriesPointOutput]
+
+
+class SOPRSeriesPointOutput(BaseModel):
+    timestamp: str
+    sopr: float
+    ema_7d: float
+    state: SOPRState
+
+
+class SOPRCurrent(BaseModel):
+    sopr: float
+    ema_7d: float
+    state: SOPRState
+    crossed_one_days_ago: int | None = None
+    interpretation: str
+
+
+class SOPROutput(BaseModel):
+    asset: str
+    computed_at: str
+    current: SOPRCurrent
+    series: list[SOPRSeriesPointOutput]
+
+
+class NVTSeriesPointOutput(BaseModel):
+    timestamp: str
+    nvt: float
+    nvt_signal_90d: float
+
+
+class NVTCurrent(BaseModel):
+    nvt: float
+    nvt_signal_90d: float
+    historical_percentile: float
+    regime: NVTRegimeT
+    interpretation: str
+
+
+class NVTOutput(BaseModel):
+    asset: str
+    computed_at: str
+    current: NVTCurrent
+    series: list[NVTSeriesPointOutput]
+
+
+class FlowRegimeOutput(BaseModel):
+    asset: str
+    computed_at: str
+    regime: FlowRegimeT
+    regime_confidence: float
+    net_flow_7d_usd: float
+    net_flow_30d_usd: float
+    baseline_net_flow_90d_usd: float
+    interpretation: str
+    historical_regime_distribution: dict[str, float]
+
+
+# ─── Phase 6 Slice 1 — Regime classifier ───────────────────────────────────
+
+
+RegimeLabelT = Literal[
+    "trending_bull",
+    "trending_bear",
+    "range_bound",
+    "volatility_expansion",
+    "capitulation",
+]
+
+
+class FeatureSupportOutput(BaseModel):
+    supporting: list[str]
+    neutral: list[str]
+    conflicting: list[str]
+
+
+class RegimeClassificationOutput(BaseModel):
+    asset: str
+    raw_classification: RegimeLabelT
+    committed_regime: RegimeLabelT
+    regime_changed: bool
+    confidence: float
+    feature_support: FeatureSupportOutput
+    reasoning: str
+
+
+class HorizonStatOutput(BaseModel):
+    horizon: str
+    median_return: float
+    p25_return: float
+    p75_return: float
+    sample_count: int
+
+
+class ForwardReturnDistributionOutput(BaseModel):
+    asset: str
+    regime: str
+    lookback_years: int
+    horizons: list[HorizonStatOutput]
+    total_observations: int
+    source: Literal["backfill", "live", "mixed"]
+    observation_window_start: Optional[str] = None
+    observation_window_end: Optional[str] = None

@@ -88,6 +88,18 @@ export interface OptionsRegimeInput {
   ivPercentile?: number;
 }
 
+/**
+ * Phase 5 Slice 3: on-chain regime inputs from the Quant Engine (MVRV) + the
+ * refresh-onchain cron (flow regime). Weights are heuristic v1 — recalibrate
+ * in Phase 6 against the regime classifier's labeled forward-return data.
+ */
+export interface OnChainRegimeInput {
+  /** Exchange flow regime from /onchain/flow-regime (BTC/ETH only). */
+  flowRegime?: 'accumulation' | 'distribution' | 'neutral';
+  /** MVRV regime band from /onchain/mvrv (BTC/ETH only). */
+  mvrvRegime?: 'deep_value' | 'fair' | 'elevated' | 'euphoria';
+}
+
 export function computeHealthScore(args: {
   symbol: string;
   funding: FundingData | null;
@@ -98,6 +110,8 @@ export function computeHealthScore(args: {
   history?: SnapshotLite[];
   /** Phase 4: options-positioning context (BTC/ETH only). Optional. */
   options?: OptionsRegimeInput;
+  /** Phase 5: on-chain regime context (BTC/ETH only). Optional. */
+  onchain?: OnChainRegimeInput;
 }): HealthScore {
   const fundingScore = scoreFunding(args.funding);
   const oiScore = scoreOI(args.oi);
@@ -119,6 +133,26 @@ export function computeHealthScore(args: {
     if (rawScore > 50) rawScore -= 1.5;
     else if (rawScore < 50) rawScore += 1.5;
   }
+
+  // Phase 5 Slice 3: on-chain regime adjustment. Deliberately modest
+  // magnitudes — conservative v1, heuristic, recalibrate in Phase 6 against
+  // the regime classifier's labeled forward-return data.
+  if (args.onchain?.flowRegime === 'accumulation') {
+    rawScore += 3; // symmetric
+  } else if (args.onchain?.flowRegime === 'distribution') {
+    rawScore -= 3;
+  }
+  // Asymmetric by design: euphoria historically precedes sharper drawdowns
+  // than deep_value precedes rallies. Re-evaluate in Phase 6 against
+  // labeled forward-return data from the regime classifier.
+  if (args.onchain?.mvrvRegime === 'deep_value') {
+    rawScore += 3;
+  } else if (args.onchain?.mvrvRegime === 'elevated') {
+    rawScore -= 2;
+  } else if (args.onchain?.mvrvRegime === 'euphoria') {
+    rawScore -= 5;
+  }
+  // mvrvRegime === 'fair' → no adjustment.
 
   const score = Math.max(0, Math.min(100, rawScore));
 

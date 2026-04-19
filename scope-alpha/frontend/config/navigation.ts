@@ -33,10 +33,19 @@ export const TERMINAL_NAV: NavItem[] = [
     phase: 3,
   },
   {
+    label: "Regime",
+    path: "/terminal/regime",
+    icon: "Compass",
+    enabled: true,
+    description:
+      "Rules-based cross-domain regime classifier. Per-asset state (bull/bear/range/vol expansion/capitulation) with confidence, 90d timeline, and historical forward-return distribution.",
+    phase: 6,
+  },
+  {
     label: "On-Chain",
     path: "/terminal/onchain",
     icon: "GitBranch",
-    enabled: false,
+    enabled: true,
     description:
       "Exchange flows, MVRV z-score, SOPR, NVT ratio, whale tracking, stablecoin flows, and supply dynamics.",
     phase: 5,

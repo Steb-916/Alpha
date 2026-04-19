@@ -12,6 +12,18 @@
     {
       "path": "/api/cron/refresh-options",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-onchain",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/poll-whales",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/refresh-regime-convergence",
+      "schedule": "0 * * * *"
     }
   ]
 }

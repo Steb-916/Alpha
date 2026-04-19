@@ -131,14 +131,22 @@ model Alert {
   userId         String
   name           String
   asset          String
-  type           String // "funding_rate" | "oi_change" | "liquidation" | "price" | "basis"
-  condition      String // "above" | "below" | "crosses_above" | "crosses_below" | "change_exceeds"
+  type           String // "funding_rate" | "oi_change" | "liquidation" | "price" | "basis" | ...
+  condition      String // "above" | "below" | "crosses_above" | "crosses_below" | "change_exceeds" | "changed"
   value          Float
   timeframe      String?
   isActive       Boolean   @default(true)
   lastTriggered  DateTime?
   triggerCount   Int       @default(0)
   deliveryMethod String    @default("in_app") // "in_app" | "email" | "telegram" | "webhook"
+
+  /// Phase 5 Slice 3: durable per-alert state that survives Redis eviction.
+  /// - For *_regime_change alerts: the last-observed regime string. First
+  ///   observation seeds this column and does NOT fire — only transitions fire.
+  /// - For whale_large_transfer alerts: the last-fired whale txHash. Dedupe
+  ///   is on hash, not timestamp, so re-observations never re-fire.
+  /// - Null for all other alert types.
+  lastObservedState String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -337,4 +345,122 @@ model GEXSnapshot {
 
   @@unique([asset, timestamp])
   @@index([asset, timestamp])
+}
+
+/// ─── Phase 5 — On-chain analytics ─────────────────────────────────────────
+///
+/// Daily snapshot of the core on-chain indicators per asset. Raw values come
+/// from the provider (CoinMetrics community in v1); derived values come from
+/// the Quant Engine (MVRV z-score, SOPR state, NVT regime, etc.).
+model OnChainSnapshot {
+  id              String   @id @default(cuid())
+  asset           String
+  timestamp       DateTime
+
+  marketCapUsd    Float?
+  realizedCapUsd  Float?
+  supplyNative    Float?
+  activeAddresses Int?
+  txCount         Int?
+  txVolumeUsd     Float?
+  feesUsd         Float?
+
+  mvrv            Float?
+  mvrvZScore      Float?
+  mvrvRegime      String?
+  sopr            Float?
+  soprState       String?
+  nvt             Float?
+  nvtRegime       String?
+
+  createdAt       DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}
+
+/// Per-exchange netflow slice (daily). v1 populates aggregate-only (exchange =
+/// "aggregate") from CoinMetrics FlowInExUSD/FlowOutExUSD; per-exchange
+/// breakdown arrives when an upgraded provider (Glassnode/Arkham) is wired in.
+model ExchangeFlowSnapshot {
+  id          String   @id @default(cuid())
+  asset       String
+  exchange    String
+  netFlowUsd  Float
+  inflowUsd   Float
+  outflowUsd  Float
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([asset, exchange, timestamp])
+  @@index([asset, timestamp])
+}
+
+/// Rolling log of large on-chain transfers. Populated by the whale poller
+/// (Slice 2). Retention policy: 90 days — pruning handled by a periodic job
+/// (not implemented in v1; table will accumulate until the first retention
+/// pass lands).
+model WhaleTransaction {
+  id             String   @id @default(cuid())
+  asset          String
+  valueUsd       Float
+  fromAddress    String
+  toAddress      String
+  fromLabel      String?
+  toLabel        String?
+  classification String
+  txHash         String
+  timestamp      DateTime
+  createdAt      DateTime @default(now())
+
+  @@unique([txHash])
+  @@index([asset, timestamp])
+  @@index([classification, timestamp])
+}
+
+/// Stablecoin aggregate (USDT + USDC + DAI) daily. Populated by the
+/// DefiLlama provider (Slice 2).
+model StablecoinSnapshot {
+  id                 String   @id @default(cuid())
+  timestamp          DateTime @unique
+  totalSupplyUsd     Float
+  exchangeBalanceUsd Float
+  exchangeBalancePct Float
+  usdtSupplyUsd      Float
+  usdcSupplyUsd      Float
+  daiSupplyUsd       Float
+  createdAt          DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+/// ─── Phase 6 Slice 1 — Regime classifier ──────────────────────────────────
+///
+/// One row per asset per hour. `rawClassification` is what the rules
+/// produced this hour; `committedRegime` is what's persisted after the
+/// 2-of-2 persistence filter (with the `capitulation` instant-commit
+/// exception). `regimeChanged` is true when the committed regime differs
+/// from the previous row's committed regime — used by `regime_change`
+/// alerts via Alert.lastObservedState.
+model RegimeSnapshot {
+  id                String   @id @default(cuid())
+  asset             String
+  timestamp         DateTime
+
+  rawClassification String
+  committedRegime   String
+  regimeChanged     Boolean  @default(false)
+  prevRegime        String?
+
+  confidence        Float
+  /// RegimeFeatureVector serialized — full snapshot for debugging + UI.
+  featureVector     Json
+  /// { supporting: string[], neutral: string[], conflicting: string[] }
+  featureSupport    Json
+
+  createdAt         DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+  @@index([committedRegime, timestamp])
 }

@@ -114,6 +114,18 @@ export async function GET(req: Request) {
           timestamp: r.timestamp,
         }));
 
+        // Phase 5 Slice 3: on-chain regime context (BTC/ETH only).
+        // Redis-only reads; cold cache → undefined → no enrichment.
+        type OnChainSupplyEnvelope = import('@/types/onchain').OnChainSupplyResponse;
+        type OnChainFlowsEnvelope = import('@/types/onchain').OnChainFlowsResponse;
+        const [onchainSupply, onchainFlows] =
+          cfg.symbol === 'BTC' || cfg.symbol === 'ETH'
+            ? await Promise.all([
+                getCached<OnChainSupplyEnvelope>(`onchain:supply:${cfg.symbol}`),
+                getCached<OnChainFlowsEnvelope>(`onchain:flows:${cfg.symbol}`),
+              ])
+            : [null, null];
+
         const result = computeHealthScore({
           symbol: cfg.symbol,
           funding,
@@ -121,6 +133,10 @@ export async function GET(req: Request) {
           basis,
           liquidation,
           history,
+          onchain: {
+            mvrvRegime: onchainSupply?.mvrv?.current.regime ?? undefined,
+            flowRegime: onchainFlows?.regime?.regime ?? undefined,
+          },
         });
 
         // Fire-and-forget: persist this hour's snapshot. Idempotent via

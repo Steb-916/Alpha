@@ -12,6 +12,12 @@ import type {
   HealthScore,
 } from '@/lib/types';
 import type { LiqSnapshot } from '@/lib/market/health';
+import type {
+  OnChainFlowsResponse,
+  OnChainSupplyResponse,
+  WhaleTransactionRecord,
+} from '@/types/onchain';
+import type { RegimeCurrentResponse } from '@/types/regime';
 import { getCached, setCached } from '@/lib/cache/redis';
 
 export interface AlertLite {
@@ -20,6 +26,13 @@ export interface AlertLite {
   condition: string;
   value: number;
   asset: string;
+  /**
+   * Phase 5 Slice 3: durable per-alert state surviving Redis eviction.
+   * - *_regime_change alerts: last-observed regime string (fire iff different).
+   * - whale_large_transfer alerts: last-fired whale txHash (skip if seen).
+   * - Null for all other alert types.
+   */
+  lastObservedState: string | null;
 }
 
 export interface EvalContext {
@@ -47,11 +60,26 @@ export interface EvalContext {
   flowAnomalyScore?: number;
   /** Phase 4: highest pin probability across active expirations (0–1). */
   pinRiskMax?: number;
+  /** Phase 5: latest on-chain supply response (BTC/ETH only); carries MVRV regime. */
+  onchainSupply?: OnChainSupplyResponse | null;
+  /** Phase 5: latest on-chain flows response (BTC/ETH only); carries flow regime. */
+  onchainFlows?: OnChainFlowsResponse | null;
+  /** Phase 5: recent whale transfers from the poll-whales Redis buffer. */
+  recentWhaleTransfers?: WhaleTransactionRecord[];
+  /** Phase 6: current regime envelope (BTC/ETH only). Null when classifier inert. */
+  currentRegime?: RegimeCurrentResponse | null;
 }
 
 export interface EvalResult {
   triggered: boolean;
   actualValue: number;
+  /**
+   * Phase 5 Slice 3: when the evaluator decides the alert's durable state
+   * should advance, it returns the new value here and the runner persists it
+   * to Alert.lastObservedState. Undefined = no state change (don't touch the
+   * column). Null = explicit clear (rare).
+   */
+  nextObservedState?: string | null;
 }
 
 function readActualValue(
@@ -99,6 +127,29 @@ function readActualValue(
       return ctx.flowAnomalyScore ?? null;
     case 'pin_risk_high':
       return ctx.pinRiskMax ?? null;
+    // Phase 5 Slice 3 — on-chain alerts. actualValue for regime alerts is a
+    // sentinel (0/1) since the real "did it change?" logic is state-based
+    // below; whale_large_transfer returns the highest *unseen* transfer USD
+    // value (0 if nothing qualifies).
+    case 'onchain_flow_regime_change': {
+      const regime = ctx.onchainFlows?.regime?.regime;
+      return regime == null ? null : 0; // sentinel — state logic handles trigger
+    }
+    case 'mvrv_regime_change': {
+      const regime = ctx.onchainSupply?.mvrv?.current.regime;
+      return regime == null ? null : 0;
+    }
+    case 'whale_large_transfer': {
+      const transfers = ctx.recentWhaleTransfers ?? [];
+      const seenHash = alert.lastObservedState;
+      const unseen = transfers.filter((t) => t.txHash !== seenHash);
+      if (unseen.length === 0) return 0;
+      return Math.max(...unseen.map((t) => t.valueUsd));
+    }
+    case 'regime_change': {
+      // Sentinel — state logic handled in the post-switch block.
+      return ctx.currentRegime?.classification != null ? 0 : null;
+    }
     default:
       return null;
   }
@@ -202,5 +253,82 @@ export async function evaluateAlert(
     triggered = true;
   }
 
-  return { triggered, actualValue };
+  // ─── Phase 5 Slice 3 — on-chain alerts ────────────────────────────────────
+  //
+  // These use durable state on Alert.lastObservedState (not Redis) so that
+  // regime transitions during long-dormant periods don't produce false fires
+  // after 24h Redis TTL eviction. The runner persists the returned
+  // nextObservedState.
+
+  let nextObservedState: string | null | undefined = undefined;
+
+  if (alert.type === 'onchain_flow_regime_change') {
+    const current = ctx.onchainFlows?.regime?.regime ?? null;
+    if (current != null) {
+      if (alert.lastObservedState == null) {
+        // First observation — seed state, do NOT fire.
+        nextObservedState = current;
+        triggered = false;
+      } else if (alert.lastObservedState !== current) {
+        // Regime transition — fire and record new regime.
+        nextObservedState = current;
+        triggered = true;
+      }
+      // Else same regime as stored → no state change, no fire.
+    }
+  }
+
+  if (alert.type === 'mvrv_regime_change') {
+    const current = ctx.onchainSupply?.mvrv?.current.regime ?? null;
+    if (current != null) {
+      if (alert.lastObservedState == null) {
+        nextObservedState = current;
+        triggered = false;
+      } else if (alert.lastObservedState !== current) {
+        nextObservedState = current;
+        triggered = true;
+      }
+    }
+  }
+
+  if (alert.type === 'whale_large_transfer') {
+    const transfers = (ctx.recentWhaleTransfers ?? []).filter(
+      (t) => t.txHash !== alert.lastObservedState && t.valueUsd >= alert.value,
+    );
+    if (transfers.length > 0) {
+      // Highest-value unseen qualifying transfer triggers the alert.
+      // Dedupe on txHash — re-observation of the same hash never re-fires.
+      const top = transfers.reduce(
+        (max, t) => (t.valueUsd > max.valueUsd ? t : max),
+        transfers[0],
+      );
+      nextObservedState = top.txHash;
+      triggered = true;
+    }
+    // Note: we do NOT seed lastObservedState when no qualifying transfer is
+    // present. An empty buffer / all-below-threshold means no state advance —
+    // the next whale ≥ threshold will be the first-observed from our POV.
+  }
+
+  // Phase 6 Slice 1 — regime_change alert. Uses the same Alert.lastObservedState
+  // durable-state pattern as the Phase 5 Slice 3 regime-change alerts. The
+  // classifier's persistence filter already suppresses flicker, so a fired
+  // regime_change alert reflects a genuinely committed transition.
+  if (alert.type === 'regime_change') {
+    const current = ctx.currentRegime?.classification?.committed_regime ?? null;
+    if (current != null) {
+      if (alert.lastObservedState == null) {
+        // First observation — seed state, do NOT fire.
+        nextObservedState = current;
+        triggered = false;
+      } else if (alert.lastObservedState !== current) {
+        // Regime transitioned — fire and record the new regime.
+        nextObservedState = current;
+        triggered = true;
+      }
+      // Else same regime as stored → no state change, no fire.
+    }
+  }
+
+  return { triggered, actualValue, nextObservedState };
 }

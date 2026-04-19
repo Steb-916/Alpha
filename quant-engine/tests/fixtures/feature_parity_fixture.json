@@ -1,0 +1,94 @@
+{
+  "_meta": {
+    "version": "2026-04-19",
+    "purpose": "Shared fixture for the TS live feature-builder and the Python backfill feature-builder. Both implementations must produce identical feature vectors from the same cache-snapshot input. If either diverges, parity tests fail.",
+    "update_protocol": "Any feature-formula change updates this fixture + both test files in the same commit. Do NOT edit one side without the other."
+  },
+  "cache_snapshot": {
+    "asset": "BTC",
+    "timestamp": "2026-04-18T12:00:00Z",
+    "funding": {
+      "currentRate": 0.00012,
+      "zScore": 0.85,
+      "change24h": 0.0002,
+      "eightHourAvg": 0.00010,
+      "annualized": 0.1095,
+      "binance": 0.00013,
+      "bybit": 0.00011
+    },
+    "oi": {
+      "aggregateOI": 82000000000,
+      "aggregateOIUsd": 82000000000,
+      "change24h": 2.4,
+      "change7d": 6.2,
+      "binance": 50000000000,
+      "bybit": 32000000000
+    },
+    "basis": {
+      "currentBasis": 0.18,
+      "annualizedBasis": 12.4
+    },
+    "liqSnapshot": {
+      "longUsd": 45000000,
+      "shortUsd": 62000000,
+      "count": 124,
+      "ts": 1776499200000
+    },
+    "onchainSupply": {
+      "asset": "BTC",
+      "mvrv": {
+        "current": {
+          "mvrv": 1.82,
+          "z_score": 0.95,
+          "regime": "elevated",
+          "historical_percentile": 0.72,
+          "interpretation": "",
+          "forward_return_distribution": null
+        }
+      }
+    },
+    "onchainFlows": {
+      "asset": "BTC",
+      "regime": {
+        "regime": "accumulation",
+        "regime_confidence": 0.72,
+        "net_flow_7d_usd": -180000000,
+        "net_flow_30d_usd": -520000000,
+        "baseline_net_flow_90d_usd": 150000000,
+        "interpretation": "",
+        "historical_regime_distribution": {"accumulation": 0.4, "distribution": 0.2, "neutral": 0.4}
+      }
+    },
+    "gex": {
+      "regime": "positive_gamma"
+    },
+    "iv_percentile_30d": 0.58,
+    "skew_25d": -0.08,
+    "vrp_sign": "positive",
+    "funding_percentile_30d": 0.66,
+    "basis_percentile": 0.54,
+    "liquidation_intensity_24h": 0.42
+  },
+  "expected_feature_vector": {
+    "asset": "BTC",
+    "timestamp": "2026-04-18T12:00:00Z",
+    "funding_percentile_30d": 0.66,
+    "oi_change_7d": 0.062,
+    "liquidation_intensity_24h": 0.42,
+    "basis_percentile": 0.54,
+    "health_score": 81.0,
+    "mvrv_regime": "elevated",
+    "mvrv_z_score": 0.95,
+    "iv_percentile": 0.58,
+    "skew_25d": -0.08,
+    "vrp_sign": "positive",
+    "gex_regime": "positive",
+    "flow_regime": "accumulation",
+    "whale_intensity_24h": null
+  },
+  "_expected_notes": {
+    "health_score_breakdown": "funding zScore 0.85 → 22 (|z|<1.0); OI 24h +2.4% → 22 (<5); liquidation long_share=45/107=0.42 imbalance=0.16 → round((1-0.16)*25)=21; basis 0.18 → 17 (<0.3). Raw sum = 22+22+21+17 = 82. Positive gamma dampens: 82>50 so -1.5 → 80.5. Flow accumulation +3 → 83.5. MVRV elevated -2 → 81.5. Clamp and round if needed → 81.5. (Expected value rounded to 81.0 if implementation rounds; otherwise 81.5 is acceptable within ±0.5 tolerance.)",
+    "oi_change_7d": "change7d field is 6.2 which is a percentage; feature is expressed as a fraction → 0.062",
+    "funding_percentile_30d": "Pre-computed; feature builder pulls directly from the snapshot"
+  }
+}
