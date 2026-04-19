@@ -1,12 +1,26 @@
 /**
  * GET /api/market/regime/current?asset=BTC
  *
- * Cache-first on `regime:current:{asset}`. Miss path:
+ * Cache + compute-only. **Persistence lives in
+ * `/api/cron/refresh-regime-convergence`** — the sole writer of
+ * `RegimeSnapshot` rows (predictable 1/day on Hobby, 24/day on Pro).
+ *
+ * This route reads the latest persisted row for the persistence-filter's
+ * prev-regime context but never writes back; cache TTL (3600s) provides
+ * intraday freshness without adding DB noise whose cadence depends on
+ * user traffic.
+ *
+ * Trade-off: a regime transition occurring between 03:00 UTC runs isn't
+ * persisted until the next day's cron. The live cache reflects it
+ * immediately for active users. For historical timeline / forward-returns
+ * analytics, this means up to 24h of persistence latency on transitions —
+ * acceptable given the 2-day commit rule already in force.
+ *
+ * Miss path:
  *   1. Fetch the latest persisted RegimeSnapshot row for prev-regime context.
  *   2. Assemble cache snapshot + build feature vector.
  *   3. Call quantEngine.classifyRegime with persistence-filter context.
- *   4. Persist new RegimeSnapshot + warm Redis cache.
- *   5. Return the envelope.
+ *   4. Warm Redis cache + return envelope. (NO Prisma write.)
  *
  * Returns 503 when Quant Engine is inert. Non-BTC/ETH assets return 400
  * (regime classifier is BTC+ETH-only in v1).
@@ -96,32 +110,14 @@ export async function GET(request: Request) {
     );
   }
 
-  // Persist snapshot (idempotent via @@unique([asset, timestamp]))
-  const tsDate = new Date(timestamp);
-  await prisma.regimeSnapshot.upsert({
-    where: { asset_timestamp: { asset, timestamp: tsDate } },
-    create: {
-      asset,
-      timestamp: tsDate,
-      rawClassification: classification.raw_classification,
-      committedRegime: classification.committed_regime,
-      regimeChanged: classification.regime_changed,
-      prevRegime: (prevSnapshot?.committedRegime as RegimeLabel | undefined) ?? null,
-      confidence: classification.confidence,
-      featureVector: featureVector as unknown as object,
-      featureSupport: classification.feature_support as unknown as object,
-    },
-    update: {
-      rawClassification: classification.raw_classification,
-      committedRegime: classification.committed_regime,
-      regimeChanged: classification.regime_changed,
-      confidence: classification.confidence,
-      featureVector: featureVector as unknown as object,
-      featureSupport: classification.feature_support as unknown as object,
-    },
-  });
+  // NO Prisma write here — cron at /api/cron/refresh-regime-convergence owns
+  // RegimeSnapshot persistence. Cache warm + serve is this route's only job.
 
-  // Days in regime: count hours back to the previous regime transition
+  // Days in regime: count days back to the previous regime transition that
+  // committed to this regime. Computed from persisted snapshots only; a
+  // transition happening between cron runs won't show up here until the
+  // next cron lands.
+  const tsDate = new Date(timestamp);
   const priorTransition = await prisma.regimeSnapshot.findFirst({
     where: {
       asset,

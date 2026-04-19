@@ -4,20 +4,32 @@
  * GET /api/cron/refresh-regime-convergence
  * Headers: Authorization: Bearer ${CRON_SECRET}
  *
- * Schedule: hourly (0 * * * *). Must run AFTER the Phase 1–5 data crons
- * that populate the domain caches this classifier reads.
+ * Schedule: **daily at 03:00 UTC** (Hobby-plan constraint — Vercel Hobby
+ * limits cron frequency to daily). Runs after `refresh-onchain` (02:00)
+ * so MVRV + flow-regime caches are fresh, and before `refresh-screener`
+ * (06:00) so alert evaluation has a current-day regime to read.
+ *
+ * **Sole writer of `RegimeSnapshot` rows**. The on-demand
+ * `/api/market/regime/current` route serves cache + lazy-compute but
+ * does NOT persist — keeping timeline density predictable at 1 row/day
+ * regardless of user traffic. See that route's header comment for the
+ * dual-writer history this replaced.
  *
  * Slice 1 scope (regime portion):
  *   For each BTC/ETH:
  *     1. Read previous RegimeSnapshot (persistence-filter context).
  *     2. Assemble cache snapshot → build feature vector.
  *     3. Call quantEngine.classifyRegime with prev context.
- *     4. Upsert new RegimeSnapshot.
+ *     4. Upsert new RegimeSnapshot (hour-floored timestamp for idempotency).
  *     5. Warm regime:current:{asset} cache.
  *
  * TODO(Slice 2): convergence-score portion — per-domain scores + composite.
- * TODO(Slice 1 daily branch): at UTC hour 0, recompute forward-return
- *   distributions per regime and warm regime:forward_returns:{asset}:{regime}.
+ * TODO(Slice 1 daily branch): at UTC hour 0 (not applicable on daily cadence
+ *   — runs every time on Hobby), recompute forward-return distributions.
+ *
+ * On Pro plan: bump schedule to `0 * * * *` (hourly). Regime timeline then
+ * renders at 1-pixel-per-hour and the capitulation instant-commit exception
+ * regains meaningful latency savings. No other code changes required.
  */
 
 import { NextResponse } from 'next/server';

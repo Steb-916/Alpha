@@ -18,12 +18,8 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/poll-whales",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/refresh-regime-convergence",
-      "schedule": "0 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

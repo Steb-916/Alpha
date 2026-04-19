@@ -69,6 +69,8 @@ Phase 6 is gated on what historical data actually exists. Honest inventory as of
 
 **Implication for forward-return distribution:** reliable for BTC from 2022 onward using derivatives + MVRV. For ETH, earliest usable is ~mid-2023. Users see the distribution with honest sample-size disclosure ("based on 312 hourly observations in this regime over 2022–2026").
 
+**Deployment plan constraint**: Vercel Hobby limits cron frequency to daily. Scope Alpha ships on Hobby through Phase 6 Slice 3. This pushes the classifier's effective cadence from hourly to daily, with follow-on implications documented inline at §3.5, §6.1, and §13 #9. Ship-plan bump to Pro is a one-line `vercel.json` change — no code path needs rewriting.
+
 ---
 
 ## 3. Regime Classifier Design
@@ -194,6 +196,8 @@ Classifier runs hourly. Without a persistence filter it will flip regimes on sin
 This adds one-hour latency to regime transitions. Acceptable trade vs the alternative (flickering timeline). Documented in UI as "Regime changes confirm after two consecutive observations."
 
 **Exception**: `capitulation` commits immediately. Tail events are rare and delaying the label by an hour defeats its utility.
+
+**Hobby-plan caveat**: under daily cron cadence, the 2-of-2 rule means regime transitions take **2 days** to commit (1 day per observation). The `capitulation` instant-commit exception becomes operationally moot — it saves the 2nd-day latency but still inherits the 1-day first-observation latency, so a flash-crash capitulation is visible ~1 day after the event instead of ~2. On Pro (hourly), the original 1-hour-latency tail-event behavior is restored by schedule change alone; no code path needs modification. UI copy on `/terminal/regime` reflects the active plan's cadence — "Regime changes confirm after 1–2 days" on Hobby, "after two consecutive observations" (implicitly ~2 hours) on Pro.
 
 ### 3.6 Forward-Return Distribution
 
@@ -468,6 +472,8 @@ Layout:
 - `capitulation` — dark red
 
 Hover reveals exact timestamp and feature snapshot. Click navigates back-in-time for that hour's feature vector.
+
+**Plan-dependent visual density**: the `pixel-per-hour` timeline above is the **Pro-plan visual**. On **Hobby**, the timeline is one pixel per *day* over the 90-day window — ~90 pixels instead of 2,160. Functionally identical (regime labels + transitions still visible, still color-coded, still clickable) but lower visual resolution. The UI caption surfaces this: "One cell per day on Hobby plan, one per hour on Pro." Bumping to Pro is a one-line `vercel.json` schedule change (`0 * * * *` instead of `0 3 * * *`); no component or compute-side changes required.
 
 ### 6.2 New Page: `/terminal/convergence`
 
@@ -958,6 +964,8 @@ Phase 6 scope fits the three-slice pattern established in Phase 5. Each slice de
 7. **Shallow-history feature inclusion.** GEX regime (3 weeks live), flow regime (since Slice 2), whale intensity (since Slice 2). Including them in the classifier v1 weighting is risky — too little history to know how they behave across regimes. **Recommendation: feature vector INCLUDES these fields but with modifier-only weight (Tier 3); they influence confidence but not the primary classification.** Upgrade to Tier 2 weight once they have 6 months of live history.
 
 8. **Regime classifier for altcoins.** SOL, AVAX, etc. have funding/OI/liquidation data (Phase 1) but no options and limited on-chain. Classifier can run on derivatives-only inputs but confidence will be structurally lower. **Recommendation: ship BTC + ETH full-classifier v1; add "derivatives-only" classifier for altcoins as a Slice 2 or Phase 7 extension.** Don't pretend we have full coverage where we don't.
+
+9. **Cron-frequency plan upgrade.** v1 ships on Vercel Hobby → daily cron cadence (confirmed via prior commit `2b10a64` — Hobby accounts are limited to daily cron jobs). The hourly design in §6.1 and §3.5 is **Pro-plan behavior**; Hobby produces 1 regime snapshot per day, a 90-pixel (instead of 2,160-pixel) timeline heatmap, and a capitulation instant-commit exception that becomes operationally inert. **Recommendation: revisit after Phase 6 Slice 3 ships.** If the regime timeline feels sparse in practice or if capitulation's fast-commit materially matters (e.g., a flash-crash event where the 1-day first-observation latency hurts), upgrade. One-line change in `vercel.json` (`0 3 * * *` → `0 * * * *`) + this PRD section becomes historical context. $20/mo; trivial against the $300+/mo Glassnode bill avoided by free-tier on-chain bootstrap.
 
 ---
 

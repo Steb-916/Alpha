@@ -140,8 +140,9 @@ export function RegimeTimelineHeatmap({ points, days }: Props) {
         className="mt-1 text-[10px] font-mono"
         style={{ color: "var(--text-muted)" }}
       >
-        Vertical marks = regime transitions (committed after 2-of-2 agreement;
-        capitulation commits instantly).
+        Vertical marks = regime transitions (committed after two consecutive
+        daily observations agree). One cell per day on Hobby plan, one per
+        hour on Pro.
       </div>
     </GlassCard>
   );

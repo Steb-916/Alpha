@@ -146,10 +146,10 @@ export function RegimeView({ asset }: Props) {
             className="text-[10px] font-mono mt-2"
             style={{ color: "var(--text-muted)" }}
           >
-            Regime changes confirm after two consecutive observations — raw
-            classifier returned <em>{classification.raw_classification}</em>{" "}
-            this hour; holding {regimeLabel} until next observation agrees.
-            (Capitulation is exempt from this filter.)
+            Regime changes confirm after 1–2 days — the classifier commits a
+            new regime only after two consecutive daily observations agree.
+            Raw classifier returned <em>{classification.raw_classification}</em>{" "}
+            this run; holding {regimeLabel} until the next run agrees.
           </p>
         )}
       </GlassCard>
@@ -181,10 +181,12 @@ export function RegimeView({ asset }: Props) {
           style={{ color: "var(--text-muted)" }}
         >
           Rules-based classifier — five regime states with a 2-of-2 persistence
-          filter (capitulation commits instantly). Confidence is the fraction of
-          available features supporting the classified regime. Rules and weights
-          are heuristic v1 — expect tuning as the persisted history deepens.
-          Analytics, not financial advice.
+          filter. Confidence is the fraction of available features supporting
+          the classified regime. Rules and weights are heuristic v1 — expect
+          tuning as the persisted history deepens. Hourly cadence requires a
+          Vercel Pro plan; daily is the Hobby-plan baseline, so regime
+          transitions take 1–2 days to commit on this deployment. Analytics,
+          not financial advice.
         </p>
       </GlassCard>
     </div>
