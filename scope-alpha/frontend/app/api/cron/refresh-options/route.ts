@@ -91,6 +91,8 @@ async function processAsset(currency: DeribitCurrency): Promise<AssetResult> {
     quantCalls: {},
   };
 
+  const now = new Date();
+
   try {
     // Step 1: fetch from Deribit in parallel
     const [summaries, volHistory] = await Promise.all([
@@ -197,7 +199,6 @@ async function processAsset(currency: DeribitCurrency): Promise<AssetResult> {
     }
 
     // Step 4: persist chain snapshot (bulk, idempotent)
-    const now = new Date();
     const persistInputs: OptionsChainSnapshotInput[] = chain.map((c) => ({
       asset: c.asset,
       instrumentName: c.instrumentName,
