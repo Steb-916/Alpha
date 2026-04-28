@@ -17,11 +17,14 @@
 import { NextResponse } from 'next/server';
 import { getCached, getStale, setCached } from '@/lib/cache/redis';
 import { prisma } from '@/lib/prisma';
+import { BinanceClient } from '@/lib/exchanges/binance';
 import {
   computeLiquidationHeatmap,
   computeRealized7dVol,
 } from '@/lib/analytics/liquidation-heatmap';
 import type { GexByStrike, CascadeRiskOverlay, CascadeRiskZone } from '@/types/options';
+
+const binance = new BinanceClient();
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
 
   // Fetch OI + candles for liquidation heatmap inputs
   const binanceSymbol = asset === 'BTC' ? 'BTCUSDT' : 'ETHUSDT';
-  const [oiRows, candleRows] = await Promise.all([
+  const [oiRows, candleRows, lsr] = await Promise.all([
     prisma.oISnapshot
       .findFirst({
         where: { asset, exchange: 'binance' },
@@ -96,9 +99,11 @@ export async function GET(request: Request) {
         take: 10,
       })
       .catch(() => []),
+    binance.getLongShortRatio(binanceSymbol, '1h').catch(() => null),
   ]);
 
   const totalOI = oiRows?.oiUsd ?? gex.spot * 1_000_000;
+  const longShortRatio = lsr?.longShortRatio ?? 1;
   const dailyCloses = candleRows.map((c) => c.close).reverse();
   const realizedVol = computeRealized7dVol(dailyCloses);
 
@@ -106,7 +111,7 @@ export async function GET(request: Request) {
     asset,
     currentPrice: gex.spot,
     totalOI,
-    longShortRatio: 1,
+    longShortRatio,
     realizedVol,
   });
 

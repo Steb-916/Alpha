@@ -36,11 +36,12 @@ export interface HeatmapResult {
   metadata: HeatmapMetadata;
 }
 
-const LEVERAGE_BUCKETS = [3, 5, 10, 25, 50, 100];
-const LEVERAGE_WEIGHTS = [0.05, 0.15, 0.3, 0.25, 0.15, 0.1]; // sums to 1.0
+// Retail-weighted leverage distribution (more mass at 2-10x, tail at high leverage)
+const LEVERAGE_BUCKETS = [2, 3, 5, 10, 20, 50, 100];
+const LEVERAGE_WEIGHTS = [0.12, 0.22, 0.28, 0.20, 0.10, 0.05, 0.03]; // sums to 1.0
 
-const LEVEL_COUNT = 40; // 20 below + 20 above current price
-const RANGE_FRACTION = 0.1; // ±10% price range
+const LEVEL_COUNT = 60; // 30 below + 30 above current price
+const RANGE_FRACTION = 0.15; // ±15% price range — captures secondary cascades
 
 export interface HeatmapInputs {
   asset: string;
@@ -128,7 +129,7 @@ export function computeLiquidationHeatmap(
       estimatedLongLeverage,
       estimatedShortLeverage,
       longShortRatio,
-      model: 'gaussian_leverage_v1',
+      model: 'gaussian_leverage_v2',
       updatedAt: new Date().toISOString(),
     },
   };
