@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/refresh-options",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-onchain",
+      "schedule": "0 8 * * *"
     }
   ]
 }

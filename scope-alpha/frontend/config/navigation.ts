@@ -36,7 +36,7 @@ export const TERMINAL_NAV: NavItem[] = [
     label: "On-Chain",
     path: "/terminal/onchain",
     icon: "GitBranch",
-    enabled: false,
+    enabled: true,
     description:
       "Exchange flows, MVRV z-score, SOPR, NVT ratio, whale tracking, stablecoin flows, and supply dynamics.",
     phase: 5,

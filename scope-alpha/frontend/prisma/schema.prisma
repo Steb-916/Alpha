@@ -353,3 +353,41 @@ model OptionsFlowEvent {
   @@index([asset, timestamp])
   @@index([asset, unusualScore, timestamp])
 }
+
+// ─── Phase 5: On-Chain Analytics ─────────────────────────────────────────────
+
+/// Hourly on-chain metric snapshots (MVRV, SOPR, NVT, supply dynamics)
+model OnChainSnapshot {
+  id                String   @id @default(cuid())
+  asset             String   // "BTC" | "ETH"
+  mvrvZScore        Float?   // (market cap - realized cap) / std dev
+  sopr              Float?   // Spent Output Profit Ratio
+  nvtRatio          Float?   // Network Value to Transactions
+  nvtSignal         Float?   // NVT Signal (90d MA smoothed NVT)
+  activeAddresses   Float?   // Daily active addresses
+  supplyOnExchanges Float?   // % of circulating supply held on exchanges
+  realizedCap       Float?   // Realized market cap (USD)
+  marketCap         Float?   // Current market cap (USD)
+  timestamp         DateTime
+  createdAt         DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}
+
+/// Hourly exchange in/outflow snapshots per asset
+model ExchangeFlowSnapshot {
+  id            String   @id @default(cuid())
+  asset         String   // "BTC" | "ETH" | "USDT" | "USDC"
+  inflowNative  Float    // Tokens flowing into exchanges (native units)
+  outflowNative Float    // Tokens flowing out of exchanges (native units)
+  netFlowNative Float    // Net flow = inflow - outflow (positive = net inflow to exchanges)
+  inflowUsd     Float?   // USD value of inflow
+  outflowUsd    Float?   // USD value of outflow
+  netFlowUsd    Float?   // USD value of net flow
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+
+  @@unique([asset, timestamp])
+  @@index([asset, timestamp])
+}
