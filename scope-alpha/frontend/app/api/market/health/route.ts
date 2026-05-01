@@ -33,6 +33,8 @@ import { prisma } from '@/lib/prisma';
 import { persistHealthScoreSnapshot } from '@/lib/market/persistence';
 import type { BasisData, FundingData, OpenInterestData } from '@/lib/types';
 import type { SnapshotLite } from '@/lib/analytics/trend';
+import { fetchOnChainOverview, fetchExchangeFlows } from '@/lib/onchain/coinmetrics';
+import type { OnChainOverview, ExchangeFlowData } from '@/lib/onchain/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -76,7 +78,10 @@ export async function GET(req: Request) {
       async () => {
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-        const [funding, oi, basis, liquidation, historyRows] = await Promise.all([
+        const ONCHAIN_ASSETS = new Set(['BTC', 'ETH']);
+        const supportsOnchain = ONCHAIN_ASSETS.has(cfg.symbol);
+
+        const [funding, oi, basis, liquidation, historyRows, onchainData, onchainFlows] = await Promise.all([
           getOrCompute<FundingData>(
             `market:funding:${cfg.symbol}`,
             60,
@@ -103,6 +108,14 @@ export async function GET(req: Request) {
               take: 200,
             })
             .catch(() => []),
+          supportsOnchain
+            ? getCached<OnChainOverview>(`onchain:overview:${cfg.symbol}`)
+                .then((c) => c ?? fetchOnChainOverview(cfg.symbol).catch(() => null))
+            : Promise.resolve(null),
+          supportsOnchain
+            ? getCached<ExchangeFlowData>(`onchain:flows:${cfg.symbol}:7`)
+                .then((c) => c ?? fetchExchangeFlows(cfg.symbol, 7).catch(() => null))
+            : Promise.resolve(null),
         ]);
 
         const history: SnapshotLite[] = historyRows.map((r) => ({
@@ -121,6 +134,8 @@ export async function GET(req: Request) {
           basis,
           liquidation,
           history,
+          onchainData,
+          onchainFlows,
         });
 
         // Fire-and-forget: persist this hour's snapshot. Idempotent via

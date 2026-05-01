@@ -21,6 +21,8 @@ import type {
   SupplyPoint,
   StablecoinFlowData,
   StablecoinFlowPoint,
+  NetworkHealthData,
+  NetworkHealthPoint,
   CoinMetricsResponse,
   CoinMetricsTimeseriesItem,
 } from './types';
@@ -246,6 +248,40 @@ export async function fetchSupplyMetrics(asset: string): Promise<SupplyData> {
       realizedCap: rc,
       marketCap: mc,
       mvrvRatio: mc !== null && rc !== null && rc > 0 ? mc / rc : null,
+    },
+    history,
+  };
+}
+
+export async function fetchNetworkHealth(asset: string): Promise<NetworkHealthData> {
+  const startTime = daysAgo(30);
+  // HashRate is available in CoinMetrics community for BTC
+  // TxCnt + FeeMeanNtv available for both BTC and ETH
+  const btcMetrics = ['HashRate', 'TxCnt', 'FeeMeanNtv', 'PriceUSD'];
+  const ethMetrics = ['TxCnt', 'FeeMeanNtv', 'PriceUSD'];
+  const metrics = asset.toUpperCase() === 'BTC' ? btcMetrics : ethMetrics;
+
+  const rows = await fetchMetrics(asset, metrics, startTime);
+
+  const history: NetworkHealthPoint[] = rows.map((r) => {
+    const price = parseNum(r['PriceUSD']);
+    const feeBtc = parseNum(r['FeeMeanNtv']);
+    return {
+      timestamp: r.time,
+      hashRate: parseNum(r['HashRate']),
+      txCount: parseNum(r['TxCnt']),
+      avgFeeBtc: feeBtc,
+      avgFeeUsd: feeBtc !== null && price !== null ? feeBtc * price : null,
+    };
+  });
+
+  const latest = history[history.length - 1];
+  return {
+    asset,
+    current: {
+      hashRate: latest?.hashRate ?? null,
+      txCount: latest?.txCount ?? null,
+      avgFeeUsd: latest?.avgFeeUsd ?? null,
     },
     history,
   };

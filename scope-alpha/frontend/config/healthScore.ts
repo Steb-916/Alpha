@@ -117,12 +117,21 @@ export const DEFAULT_COMPONENT_SCORE = 12;
 /** Special default for liquidation when snapshot is empty/null. */
 export const DEFAULT_LIQUIDATION_SCORE = 15;
 
-/** Component weights (must sum to 1.0). Used by ComponentBreakdown UI. */
+/** Component weights when on-chain data is NOT available (must sum to 1.0). */
 export const COMPONENT_WEIGHTS = {
   funding: 0.3,
   oi: 0.25,
   liquidation: 0.25,
   basis: 0.2,
+} as const;
+
+/** Component weights when on-chain data IS available (v2, must sum to 1.0). */
+export const COMPONENT_WEIGHTS_V2 = {
+  funding: 0.225,  // 30% × 0.75
+  oi: 0.1875,      // 25% × 0.75
+  liquidation: 0.1875,
+  basis: 0.15,
+  onchain: 0.25,
 } as const;
 
 export function pickScore(

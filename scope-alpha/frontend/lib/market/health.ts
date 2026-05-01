@@ -15,6 +15,7 @@
  */
 
 import type { FundingData, OpenInterestData, BasisData, HealthScore } from '@/lib/types';
+import type { OnChainOverview, ExchangeFlowData } from '@/lib/onchain/types';
 import {
   BASIS_BANDS,
   DEFAULT_COMPONENT_SCORE,
@@ -24,6 +25,7 @@ import {
   REGIME_THRESHOLDS,
   pickScore,
 } from '@/config/healthScore';
+import { scoreOnChain } from '@/lib/analytics/onchain-score';
 import { classifyRegime } from '@/lib/analytics/regime';
 import { computeTrend, type SnapshotLite } from '@/lib/analytics/trend';
 
@@ -87,15 +89,27 @@ export function computeHealthScore(args: {
   liquidation: LiqSnapshot | null;
   /** Phase 2: historical snapshots for this asset (last ~7d). Optional. */
   history?: SnapshotLite[];
+  /** Phase 5: on-chain data for v2 composite. Optional. */
+  onchainData?: OnChainOverview | null;
+  onchainFlows?: ExchangeFlowData | null;
 }): HealthScore {
-  const fundingScore = scoreFunding(args.funding);
-  const oiScore = scoreOI(args.oi);
-  const liqScore = scoreLiquidation(args.liquidation);
-  const basisScore = scoreBasis(args.basis);
+  const hasOnchain = Boolean(args.onchainData);
+
+  // v2: with on-chain data, rescale derivatives components to 75 total.
+  // Without on-chain, all four components sum to 100 (original weights).
+  const scale = hasOnchain ? 0.75 : 1.0;
+
+  const fundingScore = Math.round(scoreFunding(args.funding) * scale);
+  const oiScore = Math.round(scoreOI(args.oi) * scale);
+  const liqScore = Math.round(scoreLiquidation(args.liquidation) * scale);
+  const basisScore = Math.round(scoreBasis(args.basis) * scale);
+  const onchainScore = hasOnchain
+    ? scoreOnChain(args.onchainData ?? null, args.onchainFlows ?? null)
+    : 0;
 
   const score = Math.max(
     0,
-    Math.min(100, fundingScore + oiScore + liqScore + basisScore),
+    Math.min(100, fundingScore + oiScore + liqScore + basisScore + onchainScore),
   );
 
   // Legacy 5-band label (backward compat).
@@ -117,6 +131,7 @@ export function computeHealthScore(args: {
       oi: oiScore,
       liquidation: liqScore,
       basis: basisScore,
+      ...(hasOnchain ? { onchain: onchainScore } : {}),
     },
     regimeV2: regimeV2.label,
     regimeColor: regimeV2.color,

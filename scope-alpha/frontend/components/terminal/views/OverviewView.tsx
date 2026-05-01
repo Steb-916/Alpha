@@ -33,6 +33,7 @@ import {
   useLiveTickers,
 } from "@/hooks/useLiveTerminalData";
 import type { Annotation } from "@/lib/annotations";
+import { ConvergencePanel } from "@/components/analytics/ConvergencePanel";
 
 const LOCAL_LAYERS = [
   { id: "local-user", name: "My Annotations", color: "#00D4AA", annotationCount: 0 },
@@ -209,6 +210,13 @@ export function OverviewView() {
           />
         </GlassCard>
       </div>
+
+      {/* Convergence panel — only for BTC/ETH */}
+      {(selectedAsset === "BTC" || selectedAsset === "ETH") && (
+        <div className="shrink-0">
+          <ConvergencePanel asset={selectedAsset} />
+        </div>
+      )}
 
       {/* Drawing toolbar + chart toolbar (everyone) */}
       <div className="shrink-0 flex items-center gap-2 justify-between">

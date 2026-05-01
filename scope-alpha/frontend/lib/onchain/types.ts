@@ -71,6 +71,52 @@ export interface StablecoinFlowData {
   };
 }
 
+export interface NetworkHealthPoint {
+  timestamp: string;
+  hashRate: number | null;    // BTC: EH/s; ETH: null
+  txCount: number | null;
+  avgFeeBtc: number | null;
+  avgFeeUsd: number | null;
+}
+
+export interface NetworkHealthData {
+  asset: string;
+  current: {
+    hashRate: number | null;
+    txCount: number | null;
+    avgFeeUsd: number | null;
+  };
+  history: NetworkHealthPoint[];
+}
+
+export interface WhaleTransaction {
+  id: string;
+  timestamp: string;
+  symbol: string;
+  amountUsd: number;
+  amountNative: number;
+  fromLabel: string | null;
+  toLabel: string | null;
+  type: 'transfer' | 'exchange_deposit' | 'exchange_withdrawal' | 'unknown';
+}
+
+export interface WhaleFeedData {
+  transactions: WhaleTransaction[];
+  minValueUsd: number;
+  fetchedAt: string;
+}
+
+export interface InsightCard {
+  id: string;
+  type: 'distribution' | 'accumulation' | 'squeeze_risk' | 'neutral';
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  signals: string[];
+  asset: string;
+  timestamp: string;
+}
+
 // Raw CoinMetrics API response shape (community tier)
 export interface CoinMetricsTimeseriesItem {
   asset: string;

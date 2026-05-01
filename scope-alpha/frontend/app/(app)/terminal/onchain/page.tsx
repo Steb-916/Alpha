@@ -9,6 +9,10 @@ import { ExchangeFlowChart } from "@/components/onchain/ExchangeFlowChart";
 import { MVRVSOPRChart } from "@/components/onchain/MVRVSOPRChart";
 import { SupplyDynamicsChart } from "@/components/onchain/SupplyDynamicsChart";
 import { StablecoinFlowChart } from "@/components/onchain/StablecoinFlowChart";
+import { NetworkHealthPanel } from "@/components/onchain/NetworkHealthPanel";
+import { WhaleFeed } from "@/components/onchain/WhaleFeed";
+import { InsightCards } from "@/components/onchain/InsightCards";
+import { RNDOnChainCompare } from "@/components/onchain/RNDOnChainCompare";
 
 const TABS = [
   { label: "Overview", value: "overview" },
@@ -16,6 +20,8 @@ const TABS = [
   { label: "MVRV / SOPR / NVT", value: "valuation" },
   { label: "Supply Dynamics", value: "supply" },
   { label: "Stablecoin Flows", value: "stablecoins" },
+  { label: "Network Health", value: "network" },
+  { label: "Whale Monitor", value: "whales" },
 ] as const;
 
 type TabValue = (typeof TABS)[number]["value"];
@@ -80,11 +86,19 @@ function OnChainInner() {
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {activeTab === "overview" && <OnChainOverview asset={asset} />}
+        {activeTab === "overview" && (
+          <div className="flex flex-col gap-3">
+            <InsightCards asset={asset} />
+            <OnChainOverview asset={asset} />
+            <RNDOnChainCompare asset={asset} />
+          </div>
+        )}
         {activeTab === "flows" && <ExchangeFlowChart asset={asset} />}
         {activeTab === "valuation" && <MVRVSOPRChart asset={asset} />}
         {activeTab === "supply" && <SupplyDynamicsChart asset={asset} />}
         {activeTab === "stablecoins" && <StablecoinFlowChart />}
+        {activeTab === "network" && <NetworkHealthPanel asset={asset} />}
+        {activeTab === "whales" && <WhaleFeed asset={asset} />}
       </div>
     </div>
   );

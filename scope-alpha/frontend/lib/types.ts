@@ -90,6 +90,7 @@ export interface HealthScore {
     oi: number;
     liquidation: number;
     basis: number;
+    onchain?: number;
   };
   /** Phase 2: 7-band regime label (optional for backward compat). */
   regimeV2?:
