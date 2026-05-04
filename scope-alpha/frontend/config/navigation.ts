@@ -45,7 +45,7 @@ export const TERMINAL_NAV: NavItem[] = [
     label: "Macro",
     path: "/terminal/macro",
     icon: "Globe",
-    enabled: false,
+    enabled: true,
     description:
       "Cross-asset correlations, ETF flow tracking, market regime classification, convergence scoring, and token unlock calendar.",
     phase: 6,
