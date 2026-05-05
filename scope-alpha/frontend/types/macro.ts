@@ -37,7 +37,20 @@ export interface EtfFlowData {
 
 // ─── Market Regime ────────────────────────────────────────────────────────────
 
-export type MacroRegimeLabel = 'Bull' | 'Bear' | 'Neutral' | 'Accumulation';
+/**
+ * 6-type regime classification per v2 roadmap Phase 6.
+ * Risk-On / Risk-Off: directional trending.
+ * Accumulation / Distribution: range-bound with valuation bias.
+ * Volatile: elevated realized vol, unstable.
+ * Compressed: historically low vol, pre-breakout tension.
+ */
+export type MacroRegimeLabel =
+  | 'Risk-On'
+  | 'Risk-Off'
+  | 'Accumulation'
+  | 'Distribution'
+  | 'Volatile'
+  | 'Compressed';
 
 export interface RegimeFactor {
   name: string;
@@ -51,6 +64,7 @@ export interface MacroRegimeResult {
   regime: MacroRegimeLabel;
   confidence: number;
   score: number;
+  volState: 'high' | 'normal' | 'compressed';
   factors: {
     btcTrend: RegimeFactor;
     fundingRate: RegimeFactor;
@@ -58,6 +72,50 @@ export interface MacroRegimeResult {
     fearGreed: RegimeFactor;
   };
   history: { timestamp: string; regime: MacroRegimeLabel; score: number }[];
+  /** Typical 30-day forward return context for this regime type (seeded). */
+  historicalContext: {
+    medianReturn30d: number;
+    winRate: number;
+    avgMaxDrawdown: number;
+    sampleCount: number;
+  };
+  /** Which metrics are most predictive in the current regime. */
+  contextualEmphasis: string[];
+  computedAt: string;
+  _stale?: boolean;
+}
+
+// ─── Why Is Price Moving ───────────────────────────────────────────────────────
+
+export interface WhyMovingSignal {
+  domain: string;
+  observation: string;
+  severity: 'high' | 'medium' | 'low';
+}
+
+export interface WhyMovingResult {
+  asset: string;
+  priceChange24h: number;
+  isMoving: boolean;
+  primaryDriver: WhyMovingSignal | null;
+  secondaryDrivers: WhyMovingSignal[];
+  narrative: string;
+  computedAt: string;
+  _stale?: boolean;
+}
+
+// ─── Multi-Asset Regime Overview ───────────────────────────────────────────────
+
+export interface RegimeOverviewItem {
+  asset: string;
+  regime: MacroRegimeLabel;
+  confidence: number;
+  score: number;
+  priceChange24h: number | null;
+}
+
+export interface RegimeOverview {
+  items: RegimeOverviewItem[];
   computedAt: string;
   _stale?: boolean;
 }

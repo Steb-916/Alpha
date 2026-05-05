@@ -7,6 +7,8 @@ import type {
   MacroRegimeResult,
   MacroConvergenceScore,
   TokenUnlockCalendar,
+  WhyMovingResult,
+  RegimeOverview,
 } from '@/types/macro';
 
 const REFRESH_5M = 5 * 60 * 1000;
@@ -78,4 +80,15 @@ export function useMacroConvergence(asset = 'BTC') {
 
 export function useTokenUnlocks() {
   return useAutoRefresh<TokenUnlockCalendar>('/api/market/macro/token-unlocks', REFRESH_1H);
+}
+
+export function useWhyMoving(asset = 'BTC') {
+  return useAutoRefresh<WhyMovingResult>(
+    `/api/market/macro/why-moving?asset=${asset}`,
+    REFRESH_5M,
+  );
+}
+
+export function useRegimeOverview() {
+  return useAutoRefresh<RegimeOverview>('/api/market/regime/overview', REFRESH_15M);
 }

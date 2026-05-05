@@ -7,6 +7,8 @@ import { useAppStore } from "@/lib/store";
 import { CorrelationView } from "@/components/macro/CorrelationView";
 import { EtfFlowView } from "@/components/macro/EtfFlowView";
 import { RegimeView } from "@/components/macro/RegimeView";
+import { RegimeOverview } from "@/components/macro/RegimeOverview";
+import { WhyMovingCard } from "@/components/macro/WhyMovingCard";
 import { ConvergenceView } from "@/components/macro/ConvergenceView";
 import { TokenUnlockView } from "@/components/macro/TokenUnlockView";
 
@@ -82,7 +84,13 @@ function MacroInner() {
       <div className="flex-1 min-h-0 overflow-auto">
         {activeTab === "correlations" && <CorrelationView />}
         {activeTab === "etf-flows"    && <EtfFlowView />}
-        {activeTab === "regime"       && <RegimeView asset={asset} />}
+        {activeTab === "regime"       && (
+          <div className="flex flex-col gap-4">
+            <RegimeOverview />
+            <WhyMovingCard asset={asset} />
+            <RegimeView asset={asset} />
+          </div>
+        )}
         {activeTab === "convergence"  && <ConvergenceView asset={asset} />}
         {activeTab === "unlocks"      && <TokenUnlockView />}
       </div>
