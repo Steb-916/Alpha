@@ -1,24 +1,22 @@
+/**
+ * GET /api/market/macro/token-unlocks
+ *
+ * Returns curated upcoming token unlock events (static data).
+ * Sorted by date ascending. Events in the past are filtered out.
+ */
+
 import { NextResponse } from 'next/server';
-import { getCached, setCached } from '@/lib/cache/redis';
-import { getTokenUnlockCalendar } from '@/lib/macro/fetchers';
-import type { TokenUnlockCalendar } from '@/types/macro';
+import { TOKEN_UNLOCK_EVENTS } from '@/lib/macro/token-unlocks-data';
+import type { TokenUnlockResponse } from '@/types/macro';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const KEY = 'macro:token-unlocks';
-const TTL = 3600;
-
 export async function GET() {
-  const fresh = await getCached<TokenUnlockCalendar>(KEY);
-  if (fresh) return NextResponse.json(fresh);
+  const now = new Date();
+  const upcoming = TOKEN_UNLOCK_EVENTS
+    .filter((e) => new Date(e.date) >= now)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  try {
-    const data = await getTokenUnlockCalendar();
-    await setCached(KEY, data, TTL);
-    return NextResponse.json(data);
-  } catch (err) {
-    console.error('[macro/token-unlocks] failed:', err);
-    return NextResponse.json({ error: 'Token unlock data unavailable' }, { status: 503 });
-  }
+  return NextResponse.json({ events: upcoming } satisfies TokenUnlockResponse);
 }

@@ -1,172 +1,58 @@
-// ─── Cross-Asset Correlations ─────────────────────────────────────────────────
+export type CorrelationWindow = '30d' | '90d';
 
-export type CorrelationAsset = 'BTC' | 'ETH' | 'SPX' | 'GOLD' | 'DXY' | 'NASDAQ';
-
-export interface CorrelationMatrix {
-  assets: CorrelationAsset[];
-  matrix: number[][];
-  rollingBtcSpx: { timestamp: string; correlation: number | null }[];
-  computedAt: string;
-  windowDays: number;
-  _stale?: boolean;
+export interface AssetCorrelation {
+  spx: number | null;
+  dxy: number | null;
+  gold: number | null;
+  tnx: number | null;
 }
 
-// ─── ETF Flows ────────────────────────────────────────────────────────────────
+export interface CorrelationMatrixRow {
+  asset: string;
+  label: string;
+  correlations_30d: AssetCorrelation;
+  correlations_90d: AssetCorrelation;
+}
 
-export type EtfTicker = 'IBIT' | 'FBTC' | 'ARKB' | 'BITB' | 'HODL';
+export interface CorrelationResponse {
+  matrix: CorrelationMatrixRow[];
+  computed_at: string;
+  quant_engine_configured: boolean;
+}
 
-export interface EtfFlowDay {
+export interface ETFFlowPoint {
   date: string;
-  flows: Record<EtfTicker, number | null>;
-  totalFlow: number;
+  inflow: number;
+  outflow: number;
+  net: number;
+  cumulative: number;
 }
 
-export interface EtfFlowData {
-  dailyFlows: EtfFlowDay[];
-  cumulative: { date: string; totalCumulative: number }[];
-  latestDay: EtfFlowDay;
-  summary: {
-    totalFlowMtd: number;
-    totalFlowAllTime: number;
-    trend: 'inflow' | 'outflow' | 'mixed';
-  };
-  seedDate: string;
-  isSeeded: boolean;
-  _stale?: boolean;
-}
-
-// ─── Market Regime ────────────────────────────────────────────────────────────
-
-/**
- * 6-type regime classification per v2 roadmap Phase 6.
- * Risk-On / Risk-Off: directional trending.
- * Accumulation / Distribution: range-bound with valuation bias.
- * Volatile: elevated realized vol, unstable.
- * Compressed: historically low vol, pre-breakout tension.
- */
-export type MacroRegimeLabel =
-  | 'Risk-On'
-  | 'Risk-Off'
-  | 'Accumulation'
-  | 'Distribution'
-  | 'Volatile'
-  | 'Compressed';
-
-export interface RegimeFactor {
+export interface ETFSummary {
+  ticker: string;
   name: string;
-  value: number;
-  signal: 'bullish' | 'bearish' | 'neutral';
-  weight: number;
-  description: string;
+  total_aum_usd: number | null;
+  latest_flow_usd: number | null;
 }
 
-export interface MacroRegimeResult {
-  regime: MacroRegimeLabel;
-  confidence: number;
-  score: number;
-  volState: 'high' | 'normal' | 'compressed';
-  factors: {
-    btcTrend: RegimeFactor;
-    fundingRate: RegimeFactor;
-    mvrv: RegimeFactor;
-    fearGreed: RegimeFactor;
-  };
-  history: { timestamp: string; regime: MacroRegimeLabel; score: number }[];
-  /** Typical 30-day forward return context for this regime type (seeded). */
-  historicalContext: {
-    medianReturn30d: number;
-    winRate: number;
-    avgMaxDrawdown: number;
-    sampleCount: number;
-  };
-  /** Which metrics are most predictive in the current regime. */
-  contextualEmphasis: string[];
-  computedAt: string;
-  _stale?: boolean;
+export interface ETFFlowResponse {
+  flows: ETFFlowPoint[];
+  etfs: ETFSummary[];
+  computed_at: string;
+  unavailable?: boolean;
 }
-
-// ─── Why Is Price Moving ───────────────────────────────────────────────────────
-
-export interface WhyMovingSignal {
-  domain: string;
-  observation: string;
-  severity: 'high' | 'medium' | 'low';
-}
-
-export interface WhyMovingResult {
-  asset: string;
-  priceChange24h: number;
-  isMoving: boolean;
-  primaryDriver: WhyMovingSignal | null;
-  secondaryDrivers: WhyMovingSignal[];
-  narrative: string;
-  computedAt: string;
-  _stale?: boolean;
-}
-
-// ─── Multi-Asset Regime Overview ───────────────────────────────────────────────
-
-export interface RegimeOverviewItem {
-  asset: string;
-  regime: MacroRegimeLabel;
-  confidence: number;
-  score: number;
-  priceChange24h: number | null;
-}
-
-export interface RegimeOverview {
-  items: RegimeOverviewItem[];
-  computedAt: string;
-  _stale?: boolean;
-}
-
-// ─── Macro Convergence ────────────────────────────────────────────────────────
-
-export interface MacroSignalDomain {
-  name: string;
-  score: number;
-  signal: 'bullish' | 'bearish' | 'neutral';
-  weight: number;
-  keyFactor: string;
-}
-
-export interface MacroConvergenceScore {
-  totalScore: number;
-  direction: 'bullish' | 'bearish' | 'mixed';
-  confidence: 'high' | 'medium' | 'low';
-  domains: {
-    derivatives: MacroSignalDomain;
-    onchain: MacroSignalDomain;
-    macro: MacroSignalDomain;
-  };
-  agreementCount: number;
-  narrative: string;
-  computedAt: string;
-  _stale?: boolean;
-}
-
-// ─── Token Unlocks ────────────────────────────────────────────────────────────
-
-export type UnlockCategory = 'vesting' | 'ecosystem' | 'team' | 'investor' | 'treasury';
 
 export interface TokenUnlockEvent {
-  id: string;
-  token: string;
-  tokenName: string;
+  asset: string;
+  name: string;
   date: string;
-  amountNative: number;
-  percentOfSupply: number;
-  estimatedUsdValue: number | null;
-  category: UnlockCategory;
+  amount: number;
+  amount_unit: string;
+  usd_value_estimate: number | null;
+  type: 'cliff' | 'linear' | 'one_time';
   description: string;
-  isConfirmed: boolean;
 }
 
-export interface TokenUnlockCalendar {
+export interface TokenUnlockResponse {
   events: TokenUnlockEvent[];
-  nextUnlock: TokenUnlockEvent | null;
-  upcomingCount: number;
-  totalValueNext30d: number | null;
-  generatedAt: string;
-  _stale?: boolean;
 }

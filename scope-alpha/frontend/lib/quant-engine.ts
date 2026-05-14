@@ -26,6 +26,7 @@ import type {
   GreeksExposureInput,
   VannaCharmExposure,
 } from '@/types/options';
+import type { CorrelationResponse } from '@/types/macro';
 
 class QuantEngineClient {
   readonly configured: boolean;
@@ -71,6 +72,31 @@ class QuantEngineClient {
       '/greeks-exposure',
       input,
     );
+  }
+
+  // ─── Phase 7 — macro correlations ────────────────────────────────────────
+
+  async macroCorrelations(lookbackDays = 120): Promise<CorrelationResponse | null> {
+    return this.get<CorrelationResponse>(`/macro/correlations?lookback_days=${lookbackDays}`);
+  }
+
+  private async get<O>(path: string): Promise<O | null> {
+    if (!this.configured) return null;
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: { 'X-Quant-Key': this.apiKey },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!res.ok) {
+        console.warn(`[quant-engine] GET ${path} → ${res.status} ${res.statusText}`);
+        return null;
+      }
+      return (await res.json()) as O;
+    } catch (err) {
+      console.warn(`[quant-engine] GET ${path} failed:`, (err as Error).message);
+      return null;
+    }
   }
 
   private async post<I, O>(path: string, input: I): Promise<O | null> {

@@ -47,16 +47,16 @@ export const TERMINAL_NAV: NavItem[] = [
     icon: "Globe",
     enabled: true,
     description:
-      "Cross-asset correlations, ETF flow tracking, market regime classification, convergence scoring, and token unlock calendar.",
-    phase: 6,
+      "BTC correlations vs SPX/DXY/Gold/10Y yields, Bitcoin spot ETF flows, and upcoming token unlock calendar.",
+    phase: 7,
   },
   {
     label: "Sentiment",
     path: "/terminal/sentiment",
     icon: "MessageCircle",
-    enabled: false,
+    enabled: true,
     description:
-      "Fear & Greed Index, social volume analysis, sector sentiment rotation, and sentiment-price divergence detection.",
+      "Fear & Greed Index with 30-day history and sector sentiment derived from perpetual funding rates.",
     phase: 7,
   },
 ];
