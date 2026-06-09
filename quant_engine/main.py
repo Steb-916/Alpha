@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from models import (
     RNDInput, RNDOutput,
     SkewInput, SkewOutput,
+    SimilarityInput, SimilarityOutput,
     VolConeInput, VolConeOutput,
     VolSurfaceInput, VolSurfaceOutput,
     VRPInput, VRPOutput,
@@ -34,6 +35,7 @@ from engines.rnd import compute_rnd
 from engines.vol_cone import compute_vol_cone
 from engines.vrp import compute_vrp
 from engines.skew import compute_skew
+from engines.similarity import compute_similarity
 
 load_dotenv()
 
@@ -155,6 +157,36 @@ async def skew(body: SkewInput) -> SkewOutput:
         return compute_skew(body)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Skew compute failed: {e}")
+
+
+@app.post("/similarity", response_model=SimilarityOutput, dependencies=[Depends(verify_api_key)])
+async def similarity(body: SimilarityInput) -> SimilarityOutput:
+    """
+    Historical similarity — finds past market states closest to the current one.
+    Returns top-N matches with distance score and forward returns if available.
+    """
+    try:
+        current_dict = body.current.model_dump()
+        history_dicts = [h.model_dump() for h in body.history]
+        matches_raw = compute_similarity(current_dict, history_dicts, top_n=body.top_n)
+
+        # Build query_vector for the response (normalized feature values)
+        from engines.similarity import _feature_vector, FEATURE_BOUNDS
+        qv = _feature_vector(
+            healthScore=body.current.healthScore,
+            fundingRate=body.current.fundingRate,
+            priceChange1d=body.current.priceChange1d,
+            mvrvZScore=body.current.mvrvZScore,
+            sopr=body.current.sopr,
+            iv30d=body.current.iv30d,
+        )
+
+        return SimilarityOutput(
+            matches=matches_raw,
+            query_vector=qv,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Similarity compute failed: {e}")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -211,3 +211,50 @@ class SkewOutput(BaseModel):
     by_expiry: list[SkewByExpiry]
     term_structure: list[TermStructurePoint]
     term_structure_shape: Literal["contango", "backwardation", "flat"]
+
+
+# ─── Historical Similarity ────────────────────────────────────────────────────
+
+class MarketState(BaseModel):
+    healthScore: Optional[float] = None
+    fundingRate: Optional[float] = None
+    priceChange1d: Optional[float] = None
+    mvrvZScore: Optional[float] = None
+    sopr: Optional[float] = None
+    iv30d: Optional[float] = None
+
+
+class HistoricalSnapshot(MarketState):
+    date: str
+    close: float
+    fwd7d: Optional[float] = None
+    fwd14d: Optional[float] = None
+    fwd30d: Optional[float] = None
+
+
+class SimilarityInput(BaseModel):
+    current: MarketState
+    history: list[HistoricalSnapshot]
+    top_n: int = 10
+
+
+class SimilarityMatch(BaseModel):
+    date: str
+    close: float
+    distance: float
+    similarityPct: float
+    healthScore: Optional[float] = None
+    fundingRate: Optional[float] = None
+    priceChange1d: Optional[float] = None
+    mvrvZScore: Optional[float] = None
+    sopr: Optional[float] = None
+    iv30d: Optional[float] = None
+    fwd7d: Optional[float] = None
+    fwd14d: Optional[float] = None
+    fwd30d: Optional[float] = None
+
+
+class SimilarityOutput(BaseModel):
+    matches: list[SimilarityMatch]
+    query_vector: dict[str, Optional[float]]
+
