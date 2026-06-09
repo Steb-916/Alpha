@@ -84,7 +84,7 @@ export const TOOLS_NAV: NavItem[] = [
     label: "Backtester",
     path: "/tools/backtest",
     icon: "FlaskConical",
-    enabled: false,
+    enabled: true,
     description:
       "Visual strategy builder with backtesting against historical multi-domain data. No coding required.",
     phase: 8,
