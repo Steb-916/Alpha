@@ -52,15 +52,15 @@ export async function POST(req: Request) {
     await Promise.all([
       // Last 7 days to get current state
       prisma.candleHistory.findMany({
-        where: { asset: upperAsset, openTime: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-        orderBy: { openTime: "desc" },
+        where: { asset: upperAsset, timestamp: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        orderBy: { timestamp: "desc" },
         take: 7,
       }),
       // All history for similarity search
       prisma.candleHistory.findMany({
-        where: { asset: upperAsset, openTime: { gte: cutoffAll } },
-        orderBy: { openTime: "asc" },
-        select: { openTime: true, close: true, volume: true },
+        where: { asset: upperAsset, timestamp: { gte: cutoffAll } },
+        orderBy: { timestamp: "asc" },
+        select: { timestamp: true, close: true, volume: true },
       }),
       prisma.healthScoreSnapshot.findMany({
         where: { asset: upperAsset, timestamp: { gte: cutoffAll } },
@@ -75,12 +75,12 @@ export async function POST(req: Request) {
       prisma.iVSnapshot.findMany({
         where: { asset: upperAsset, timestamp: { gte: cutoffAll } },
         orderBy: { timestamp: "asc" },
-        select: { timestamp: true, atmIv30d: true },
+        select: { timestamp: true, iv30d: true },
       }),
       prisma.fundingRateSnapshot.findMany({
         where: { asset: upperAsset, timestamp: { gte: cutoffAll } },
         orderBy: { timestamp: "asc" },
-        select: { timestamp: true, fundingRate: true },
+        select: { timestamp: true, rate: true },
       }),
     ]);
 
@@ -105,14 +105,14 @@ export async function POST(req: Request) {
   }
 
   const ivMap = new Map<string, number>();
-  for (const iv of ivSnaps) ivMap.set(toDateKey(iv.timestamp), iv.atmIv30d);
+  for (const iv of ivSnaps) if (iv.iv30d != null) ivMap.set(toDateKey(iv.timestamp), iv.iv30d);
 
   const fundingMap = new Map<string, number>();
-  for (const f of fundingSnaps) fundingMap.set(toDateKey(f.timestamp), f.fundingRate);
+  for (const f of fundingSnaps) fundingMap.set(toDateKey(f.timestamp), f.rate);
 
   // Build per-day close array for priceChange1d
   const closePrices: { date: string; close: number }[] = allCandles.map((c) => ({
-    date: toDateKey(c.openTime),
+    date: toDateKey(c.timestamp),
     close: c.close,
   }));
 
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
   // Build current state from most recent candle
   const latestCandle = recentCandles[0];
-  const latestDate = toDateKey(latestCandle.openTime);
+  const latestDate = toDateKey(latestCandle.timestamp);
   const prevCandle = recentCandles[1];
   const prevClose = prevCandle?.close ?? null;
   const currentPriceChange = prevClose ? ((latestCandle.close - prevClose) / prevClose) * 100 : null;
