@@ -75,7 +75,7 @@ export const TOOLS_NAV: NavItem[] = [
     label: "Screener",
     path: "/tools/screener",
     icon: "Filter",
-    enabled: false,
+    enabled: true,
     description:
       "Custom multi-factor screener across derivatives, options, on-chain, and sentiment data domains.",
     phase: 8,
