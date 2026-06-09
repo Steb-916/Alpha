@@ -75,7 +75,7 @@ export const TOOLS_NAV: NavItem[] = [
     label: "Screener",
     path: "/tools/screener",
     icon: "Filter",
-    enabled: false,
+    enabled: true,
     description:
       "Custom multi-factor screener across derivatives, options, on-chain, and sentiment data domains.",
     phase: 8,
@@ -84,7 +84,7 @@ export const TOOLS_NAV: NavItem[] = [
     label: "Backtester",
     path: "/tools/backtest",
     icon: "FlaskConical",
-    enabled: false,
+    enabled: true,
     description:
       "Visual strategy builder with backtesting against historical multi-domain data. No coding required.",
     phase: 8,
