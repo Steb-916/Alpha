@@ -85,6 +85,8 @@ export async function POST(request: Request) {
       typeof body.deliveryMethod === "string"
         ? (body.deliveryMethod as DeliveryMethod)
         : "in_app";
+    const notifyEmail = body.notifyEmail === true;
+    const notifyTelegram = body.notifyTelegram === true;
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -118,6 +120,8 @@ export async function POST(request: Request) {
         value,
         timeframe,
         deliveryMethod,
+        notifyEmail,
+        notifyTelegram,
       },
     });
     return NextResponse.json(created, { status: 201 });

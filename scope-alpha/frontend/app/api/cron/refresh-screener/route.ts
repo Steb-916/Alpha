@@ -343,6 +343,9 @@ export async function GET(req: Request) {
 
   await writeFreshAndStale(SCREENER_KEY, envelope, SCREENER_TTL);
 
+  // Write freshness metadata for the /api/health endpoint to read.
+  await setCached('market:screener:meta', { updatedAt: new Date().toISOString() }, SCREENER_TTL);
+
   const elapsedMs = Date.now() - startTs;
   console.log(
     `[refresh-screener] built ${rows.length}/${ENABLED_ASSETS.length} rows in ${elapsedMs}ms (${errors.length} errors)`,

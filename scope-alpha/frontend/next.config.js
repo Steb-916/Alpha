@@ -7,6 +7,9 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['ws'],
   },
+  env: {
+    NEXT_PUBLIC_TELEGRAM_BOT_NAME: process.env.TELEGRAM_BOT_NAME ?? '',
+  },
 };
 
 // Phase 7: optionally wrap with Sentry's webpack plugin when both

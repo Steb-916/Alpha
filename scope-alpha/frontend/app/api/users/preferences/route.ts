@@ -54,6 +54,8 @@ export async function PATCH(request: Request) {
     if (typeof body.theme === "string") updateData.theme = body.theme;
     if (body.savedLayouts !== undefined)
       updateData.savedLayouts = body.savedLayouts;
+    if (typeof body.telegramChatId === "string" || body.telegramChatId === null)
+      updateData.telegramChatId = body.telegramChatId ?? null;
 
     const prefs = await prisma.userPreferences.upsert({
       where: { userId: session.user.id },

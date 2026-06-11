@@ -21,6 +21,10 @@ interface HealthChecks {
   database: boolean;
   redis: boolean;
   pool?: number;
+  dataFreshness?: {
+    screener: boolean;
+    screenerAgeMinutes?: number;
+  };
 }
 
 export async function GET() {
@@ -57,6 +61,24 @@ export async function GET() {
     }
   } catch {
     // Some hosting providers (Neon serverless) may reject this. Skip silently.
+  }
+
+  // ── Data freshness: screener cache ────────────────────────────────────────
+  // The screener cron runs daily. Stale = last update > 26h ago.
+  try {
+    const meta = await getCached<{ updatedAt: string }>('market:screener:meta');
+    if (meta?.updatedAt) {
+      const ageMs = Date.now() - new Date(meta.updatedAt).getTime();
+      const ageMinutes = Math.round(ageMs / 60_000);
+      checks.dataFreshness = {
+        screener: ageMs < 26 * 60 * 60 * 1000,
+        screenerAgeMinutes: ageMinutes,
+      };
+    } else {
+      checks.dataFreshness = { screener: false };
+    }
+  } catch {
+    // Non-critical — skip
   }
 
   const healthy = checks.database && checks.redis;

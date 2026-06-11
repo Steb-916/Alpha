@@ -6,14 +6,15 @@
  * the condition check and the throttle gate.
  *
  * Firing = create AlertHistory row + update Alert.lastTriggered and
- * triggerCount. All writes are best-effort and will not throw back to the
- * caller — the cron job should continue even if alert writes fail.
+ * triggerCount + dispatch notifications (email / telegram).
  */
 
 import { prisma } from '@/lib/prisma';
 import { log } from '@/lib/logger';
 import { evaluateAlert, type EvalContext, type AlertLite } from './evaluator';
 import { shouldFire } from './throttle';
+import { sendAlertEmail } from '@/lib/notifications/email';
+import { sendTelegramMessage, formatAlertMessage } from '@/lib/notifications/telegram';
 
 export async function runAlertsForAsset(
   asset: string,
@@ -29,7 +30,11 @@ export async function runAlertsForAsset(
         condition: true,
         value: true,
         asset: true,
+        name: true,
+        notifyEmail: true,
+        notifyTelegram: true,
         lastTriggered: true,
+        userId: true,
       },
     });
 
@@ -67,6 +72,11 @@ export async function runAlertsForAsset(
           }),
         ]);
         firedCount++;
+
+        // Dispatch external notifications (fire-and-forget, non-blocking)
+        if (alert.notifyEmail || alert.notifyTelegram) {
+          void dispatchNotifications(alert, result.actualValue);
+        }
       } catch (err) {
         log('warn', 'alert fire failed', {
           metadata: {
@@ -83,4 +93,48 @@ export async function runAlertsForAsset(
     });
   }
   return firedCount;
+}
+
+async function dispatchNotifications(
+  alert: {
+    id: string;
+    userId: string;
+    name: string;
+    asset: string;
+    type: string;
+    condition: string;
+    value: number;
+    notifyEmail: boolean;
+    notifyTelegram: boolean;
+  },
+  actualValue: number,
+): Promise<void> {
+  try {
+    const [user, prefs] = await Promise.all([
+      prisma.user.findUnique({ where: { id: alert.userId }, select: { email: true } }),
+      prisma.userPreferences.findUnique({ where: { userId: alert.userId }, select: { telegramChatId: true } }),
+    ]);
+
+    const payload = {
+      alertName: alert.name,
+      asset: alert.asset,
+      type: alert.type,
+      condition: alert.condition,
+      threshold: alert.value,
+      actualValue,
+    };
+
+    if (alert.notifyEmail && user?.email) {
+      await sendAlertEmail({ to: user.email, ...payload });
+    }
+
+    if (alert.notifyTelegram && prefs?.telegramChatId) {
+      const text = formatAlertMessage(payload);
+      await sendTelegramMessage(prefs.telegramChatId, text);
+    }
+  } catch (err) {
+    log('warn', 'dispatchNotifications failed', {
+      metadata: { alertId: alert.id, error: (err as Error).message },
+    });
+  }
 }

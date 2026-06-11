@@ -13,8 +13,7 @@ export default function AlertsPage() {
         className="text-xs font-body mb-6"
         style={{ color: "var(--text-muted)" }}
       >
-        Alerts are stored now but triggers fire starting in Phase 2 when live
-        data is flowing.
+        Configure alert rules and delivery channels. Alerts are evaluated every time the screener cron runs.
       </p>
       <AlertManager />
     </div>

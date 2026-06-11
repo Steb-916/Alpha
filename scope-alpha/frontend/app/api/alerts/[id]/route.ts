@@ -43,6 +43,8 @@ export async function PATCH(
     if (typeof body.isActive === "boolean") updateData.isActive = body.isActive;
     if (typeof body.deliveryMethod === "string")
       updateData.deliveryMethod = body.deliveryMethod;
+    if (typeof body.notifyEmail === "boolean") updateData.notifyEmail = body.notifyEmail;
+    if (typeof body.notifyTelegram === "boolean") updateData.notifyTelegram = body.notifyTelegram;
 
     const updated = await prisma.alert.update({
       where: { id: params.id },

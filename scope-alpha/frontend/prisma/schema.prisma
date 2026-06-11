@@ -104,6 +104,7 @@ model UserPreferences {
   defaultTimeframe String  @default("1H")
   theme            String  @default("dark")
   savedLayouts     Json?
+  telegramChatId   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -138,7 +139,9 @@ model Alert {
   isActive       Boolean   @default(true)
   lastTriggered  DateTime?
   triggerCount   Int       @default(0)
-  deliveryMethod String    @default("in_app") // "in_app" | "email" | "telegram" | "webhook"
+  deliveryMethod String    @default("in_app") // "in_app" | "email" | "telegram" | "all"
+  notifyEmail    Boolean   @default(false)
+  notifyTelegram Boolean   @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
